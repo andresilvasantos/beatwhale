@@ -5,8 +5,8 @@ import QtQuick.Window 2.0
 ApplicationWindow {
     id: mainWindow
     title: qsTr("BeatWhale vAlpha")
-    width: 1170//Screen.width / 2
-    height: 800//Screen.height / 2
+    width: Screen.width / 2
+    height: Screen.height / 2
     minimumWidth: 800
     minimumHeight: 600
     color: "#111111"

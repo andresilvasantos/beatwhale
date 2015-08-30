@@ -158,7 +158,7 @@ Rectangle {
 
         Text {
             id: usernameText
-            text: "username"//UserManager.username()
+            text: UserManager.username()
             color: "#9ca5aa"
             font.pixelSize: 14
             font.family: "Open Sans"
