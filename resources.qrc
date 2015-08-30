@@ -1,0 +1,58 @@
+<RCC>
+    <qresource prefix="/images">
+        <file alias="add">resources/add.png</file>
+        <file alias="remove">resources/remove.png</file>
+        <file alias="heartUnchecked">resources/heart_unchecked.png</file>
+        <file alias="heartChecked">resources/heart_checked.png</file>
+        <file alias="logoHorizontal">resources/logo_horizontal.png</file>
+        <file alias="logoHorizontalDark">resources/logo_horizontal_dark.png</file>
+        <file alias="logo">resources/logo.png</file>
+        <file alias="playDark">resources/play.png</file>
+        <file alias="forward">resources/forward.png</file>
+        <file alias="shuffle">resources/shuffle.png</file>
+        <file alias="repeat">resources/repeat.png</file>
+        <file alias="pause">resources/pause.png</file>
+        <file alias="repeatToggled">resources/repeat_highlight.png</file>
+        <file alias="shuffleToggled">resources/shuffle_highlight.png</file>
+        <file alias="addDark">resources/add_dark.png</file>
+        <file alias="enlarge">resources/enlarge.png</file>
+        <file alias="fullscreen">resources/fullscreen.png</file>
+        <file alias="zoomIn">resources/zoom_in.png</file>
+        <file alias="zoomOut">resources/zoom_out.png</file>
+        <file alias="openQueue">resources/open_queue.png</file>
+        <file alias="openQueueToggled">resources/open_queue_highlight.png</file>
+        <file alias="play">resources/play2.png</file>
+        <file alias="addQueue">resources/add_queue.png</file>
+    </qresource>
+    <qresource prefix="/icons">
+        <file alias="lock">resources/lock.png</file>
+        <file alias="user">resources/user.png</file>
+        <file alias="email">resources/mail.png</file>
+    </qresource>
+    <qresource prefix="/qml">
+        <file alias="ApplicationView.qml">qml/ApplicationView.qml</file>
+        <file alias="BWButton.qml">qml/BWButton.qml</file>
+        <file alias="BWListModel.qml">qml/BWListModel.qml</file>
+        <file alias="BWVideo.qml">qml/BWVideo.qml</file>
+        <file alias="DiscoverView.qml">qml/DiscoverView.qml</file>
+        <file alias="FavoritesView.qml">qml/FavoritesView.qml</file>
+        <file alias="LoginScreen.qml">qml/LoginScreen.qml</file>
+        <file alias="main.qml">qml/main.qml</file>
+        <file alias="MediaControlsBar.qml">qml/MediaControlsBar.qml</file>
+        <file alias="PlayingQueue.qml">qml/PlayingQueue.qml</file>
+        <file alias="PlaylistView.qml">qml/PlaylistView.qml</file>
+        <file alias="SearchView.qml">qml/SearchView.qml</file>
+        <file alias="SideBar.qml">qml/SideBar.qml</file>
+        <file alias="VideoThumbnail.qml">qml/VideoThumbnail.qml</file>
+        <file alias="TopBar.qml">qml/TopBar.qml</file>
+        <file alias="SettingsView.qml">qml/SettingsView.qml</file>
+        <file alias="BWTooltip.qml">qml/BWTooltip.qml</file>
+        <file alias="BWPopup.qml">qml/BWPopup.qml</file>
+        <file alias="LoginComponent.qml">qml/LoginComponent.qml</file>
+        <file alias="RegisterComponent.qml">qml/RegisterComponent.qml</file>
+    </qresource>
+    <qresource prefix="/fonts">
+        <file alias="openSans">resources/OpenSans-Regular.ttf</file>
+        <file alias="openSansBold">resources/OpenSans-Bold.ttf</file>
+    </qresource>
+</RCC>
