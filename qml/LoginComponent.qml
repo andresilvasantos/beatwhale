@@ -69,6 +69,9 @@ Rectangle {
                             selectByMouse: true
                             selectionColor: "#333333"
                             clip: true
+                            validator: RegExpValidator {
+                                regExp: /^[a-z0-9_$()-]*$/i
+                            }
 
                             anchors {
                                 verticalCenter: parent.verticalCenter
@@ -195,6 +198,7 @@ Rectangle {
                 text: "forgot details?"
                 color: "#929292"
                 font.family: "Open Sans"
+                font.pixelSize: 11
 
                 anchors {
                     right: parent.right

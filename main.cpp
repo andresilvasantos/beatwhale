@@ -25,12 +25,12 @@ QString logFileName;
 
 void myMessageHandler(QtMsgType, const QMessageLogContext&, const QString &message)
 {
-    QFile outFile(logFileName);
-    outFile.open(QIODevice::WriteOnly | QIODevice::Append);
-    QTextStream ts(&outFile);
-    QDateTime date;
-    QString dateStr = date.currentDateTime().toString("[dd/MM/yy | hh:mm:ss]");
-    ts << dateStr << " - " << message << endl;
+//    QFile outFile(logFileName);
+//    outFile.open(QIODevice::WriteOnly | QIODevice::Append);
+//    QTextStream ts(&outFile);
+//    QDateTime date;
+//    QString dateStr = date.currentDateTime().toString("[dd/MM/yy | hh:mm:ss]");
+//    ts << dateStr << " - " << message << endl;
 }
 
 int main(int argc, char *argv[])
@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
 
     //logFileName = "log.txt";
-    //qInstallMessageHandler(myMessageHandler);
+//    qInstallMessageHandler(myMessageHandler);
 
 #ifdef Q_OS_WIN
     //qputenv("VLC_PLUGIN_PATH", QString(QCoreApplication::applicationDirPath() + "/vlc_plugins/"));

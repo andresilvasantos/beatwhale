@@ -47,6 +47,9 @@ signals:
     void createEmailDocumentSuccess();
     void createEmailDocumentFailed(const QString& message);
 
+    void sendCodeByEmailSuccess();
+    void sendCodeByEmailFailed(const QString& message);
+
     void loginSuccess();
     void loginFailed(const QString& message);
 
@@ -96,9 +99,12 @@ private slots:
     void createEmailDocumentReply(const bool& success, const QString& id);
     void loginReply(const bool& success, const bool &authProblem);
 
+    void sendCodeByEmailReply(const bool &success, const QString &message);
+
     void forgotDetailsStepRetrieveEmailDocumentReply(const bool &success, const QString &id, const QJsonDocument &document);
     void forgotDetailsStepUserDocumentRevReply(const bool &success, const QString &id, const QString &rev);
     void forgotDetailsStepResetPasswordReply(const bool &success, const QString &id);
+    void forgotDetailsStepSendEmailReply(const bool &success, const QString &message);
 
     void changePasswordStepEndSessionReply(const bool &success);
     void changePasswordStepUserDocumentRevReply(const bool &success, const QString &id, const QString &rev);
@@ -126,6 +132,7 @@ protected:
     void forgotDetailsStepRetrieveEmailDocument();
     void forgotDetailsStepUserDocumentRev();
     void forgotDetailsStepResetPassword(const QString &rev);
+    void forgotDetailsStepSendEmail();
 
     void changePasswordStepEndSession();
     void changePasswordStepUserDocumentRev();

@@ -7,8 +7,6 @@ macx {
     CONFIG += c++11
 }
 
-RC_FILE = beatwhale.rc
-
 CONFIG(debug, debug|release): DESTDIR = $${ROOT_DIR}/Output/debug
 CONFIG(release, debug|release): DESTDIR = $${ROOT_DIR}/Output/release
 
@@ -41,6 +39,14 @@ INCLUDEPATH += ../../TOP/TOP-DatabaseManager
 INCLUDEPATH += ../../TOP/TOP-Components
 INCLUDEPATH += ../../TOP/TOP-VLC
 INCLUDEPATH += ../../TOP/TOP-Social
+
+win32 {
+    RC_FILE = beatwhale.rc
+}
+
+unix {
+    ICON = beatwhale.icns
+}
 
 defineTest(qtcAddDeployment) {
 for(deploymentfolder, DEPLOYMENTFOLDERS) {

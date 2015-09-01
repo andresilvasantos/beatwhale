@@ -44,7 +44,8 @@ PlaylistsManager::PlaylistsManager(QObject *parent) :
 
 PlaylistsManager::~PlaylistsManager()
 {
-    delete d_ptr;
+    //Commented because it was causing crash
+    //delete d_ptr;
 }
 
 PlaylistsManager *PlaylistsManager::singleton()

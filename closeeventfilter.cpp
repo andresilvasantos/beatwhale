@@ -1,9 +1,6 @@
 #include "closeeventfilter.h"
 #include "usermanager.h"
 
-#include <databasemanager.h>
-#include <youtubeapimanager.h>
-
 #include <QTimer>
 #include <QEvent>
 #include <QApplication>
@@ -15,8 +12,8 @@ bool CloseEventFilter::eventFilter(QObject *obj, QEvent *event)
     if(event->type() == QEvent::Close)
     {
         UserManager::singleton()->stopListeningToChanges();
-        DatabaseManager::singleton()->shutdown();
-        QTimer::singleShot(200, this, SLOT(closeApplication()));
+        QApplication::instance()->quit();
+//        QTimer::singleShot(200, this, SLOT(closeApplication()));
         return true;
     }
     else
@@ -28,6 +25,6 @@ bool CloseEventFilter::eventFilter(QObject *obj, QEvent *event)
 void CloseEventFilter::closeApplication()
 {
     qDebug() << "Safe exit";
-    //QApplication::instance()->thread()->quit();
-    exit(0);
+    //QApplication::instance()->quit();
+    //exit(0);
 }

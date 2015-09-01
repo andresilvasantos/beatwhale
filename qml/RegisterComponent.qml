@@ -101,7 +101,9 @@ Rectangle {
                             selectByMouse: true
                             selectionColor: "#333333"
                             clip: true
-                            inputMethodHints: Qt.ImhEmailCharactersOnly
+                            validator: RegExpValidator {
+                                regExp: /^[a-z0-9_$()-]*$/i
+                            }
 
                             anchors {
                                 verticalCenter: parent.verticalCenter
@@ -518,6 +520,15 @@ Rectangle {
         onCheckUniqueEmailSuccess: {
             code = UserManager.generateActivationCode()
             UserManager.sendCodeByEmail(email, code)
+        }
+
+        onSendCodeByEmailFailed: {
+            statusMessage = message
+            registerComponentRect.state = "LOGGED_OFF"
+            waitingInterface = false
+        }
+
+        onSendCodeByEmailSuccess: {
             componentLoader.sourceComponent = confirmationCodeComponent
             waitingInterface = false
             registerComponentRect.state = "CODE_CONFIRMATION"

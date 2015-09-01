@@ -19,12 +19,17 @@ public:
         firstTime(true),
         waitingForChanges(false),
         documentReadyForUpload(false),
-        localSettings("beatwhale.ini", QSettings::IniFormat),
+        localSettings(QSettings::IniFormat, QSettings::UserScope, "BeatWhale", "beatwhale_app"),
         emailManager(0)
     {
         QSettings settings("beatwhale_config.ini", QSettings::IniFormat);
         adminUsername = settings.value("database_user").toString();
         adminPassword = settings.value("database_pw").toString();
+
+        beatwhaleEmail = settings.value("beatwhale_email").toString();
+        beatwhaleEmailPassword = settings.value("beatwhale_email_password").toString();
+        beatwhaleEmailServer = settings.value("beatwhale_email_server").toString();
+        beatwhaleEmailPort = settings.value("beatwhale_email_port").toInt();
     }
 
     virtual ~UserManagerPrivate()
@@ -34,6 +39,11 @@ public:
 
     QString adminUsername;
     QString adminPassword;
+
+    QString beatwhaleEmail;
+    QString beatwhaleEmailPassword;
+    QString beatwhaleEmailServer;
+    int beatwhaleEmailPort;
 
     QString username;
     QString password;
@@ -299,7 +309,7 @@ void UserManager::createUserDatabase(const QString& username) const
     qDebug() << "Creating user database for" << username;
 
     connect(DatabaseManager::singleton(), SIGNAL(databaseReplicated(bool)), SLOT(createUserDatabaseReply(bool)));
-    DatabaseManager::singleton()->replicateDatabase("user_template", "u_" + username, DatabaseManager::ACCESSTYPE_REMOTE, DatabaseManager::ACCESSTYPE_REMOTE, true, false);
+    DatabaseManager::singleton()->replicateDatabase("user_template", "u_" + username.toLower(), DatabaseManager::ACCESSTYPE_REMOTE, DatabaseManager::ACCESSTYPE_REMOTE, true, false);
 }
 
 void UserManager::createUserDatabaseReply(const bool& success)
@@ -335,7 +345,7 @@ void UserManager::updateSettingsFileStepRetrieve()
     DatabaseManager::singleton()->setCredentials(d->adminUsername, d->adminPassword);
 
     connect(DatabaseManager::singleton(), SIGNAL(documentRetrieved(bool,QString,QJsonDocument)), SLOT(updateSettingsFileStepRetrieveReply(bool,QString,QJsonDocument)));
-    DatabaseManager::singleton()->retrieveDocument("u_" + d->username, "settings", DatabaseManager::ACCESSTYPE_REMOTE);
+    DatabaseManager::singleton()->retrieveDocument("u_" + d->username.toLower(), "settings", DatabaseManager::ACCESSTYPE_REMOTE);
 }
 
 void UserManager::updateSettingsFileStepRetrieveReply(const bool& connectionSuccess, const QString& id, const QJsonDocument& document)
@@ -360,7 +370,7 @@ void UserManager::updateSettingsFileStepRetrieveReply(const bool& connectionSucc
     JsonHelper::modifyValue(updatedDocument, "email", d->email);
 
     connect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), SLOT(updateSettingsFileReply(bool,QString)));
-    DatabaseManager::singleton()->updateDocument("u_" + d->username, "settings", updatedDocument.toJson(), DatabaseManager::ACCESSTYPE_REMOTE);
+    DatabaseManager::singleton()->updateDocument("u_" + d->username.toLower(), "settings", updatedDocument.toJson(), DatabaseManager::ACCESSTYPE_REMOTE);
 }
 
 void UserManager::updateSettingsFileReply(const bool& success, const QString& id)
@@ -402,7 +412,7 @@ void UserManager::updateDatabaseSecurity(const QString& username) const
     QByteArray json = document.toJson();
 
     connect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), SLOT(updateDatabaseSecurityReply(bool,QString)));
-    DatabaseManager::singleton()->updateDocument("u_" + username, "_security", json, DatabaseManager::ACCESSTYPE_REMOTE);
+    DatabaseManager::singleton()->updateDocument("u_" + username.toLower(), "_security", json, DatabaseManager::ACCESSTYPE_REMOTE);
 }
 
 void UserManager::updateDatabaseSecurityReply(const bool& success, const QString& id)
@@ -479,9 +489,26 @@ void UserManager::sendCodeByEmail(const QString &emailAddress, const QString &ac
 
     if(!d->emailManager) d->emailManager = new EmailManager(this);
 
-    d->emailManager->setEmailData("info@beatwhale.com", d->adminPassword, "BeatWhale Team", "server.flexiserver150.com", 25, false);
+    connect(d->emailManager, SIGNAL(sendEmailFinished(bool,QString)), SLOT(sendCodeByEmailReply(bool,QString)));
+    d->emailManager->setEmailData(d->beatwhaleEmail, d->beatwhaleEmailPassword, "BeatWhale Team", d->beatwhaleEmailServer, d->beatwhaleEmailPort, false);
     d->emailManager->sendEmail(emailAddress, "", "BeatWhale Confirmation Code", "Cool, we are almost there!\n\n\nJust copy the code below and paste it into the application:\n\nCode: " +
                                activationCode + "\n\n\n\nWe'll be waiting!\n-BeatWhale Team");
+}
+
+void UserManager::sendCodeByEmailReply(const bool &success, const QString &message)
+{
+    Q_D(UserManager);
+
+    disconnect(d->emailManager, SIGNAL(sendEmailFinished(bool,QString)), this, SLOT(sendCodeByEmailReply(bool,QString)));
+
+    if(success)
+    {
+        emit sendCodeByEmailSuccess();
+    }
+    else
+    {
+        emit sendCodeByEmailFailed("Failed to send email with code activation. Please try again.");
+    }
 }
 
 void UserManager::login(const QString& username, const QString& password)
@@ -517,7 +544,7 @@ void UserManager::loginReply(const bool &success, const bool& authProblem)
     }
 
     connect(DatabaseManager::singleton(), SIGNAL(documentRetrieved(bool,QString,QJsonDocument)), SLOT(documentSettingsRetrieved(bool,QString,QJsonDocument)));
-    DatabaseManager::singleton()->retrieveDocument("u_" + d->username, "settings", DatabaseManager::ACCESSTYPE_REMOTE);
+    DatabaseManager::singleton()->retrieveDocument("u_" + d->username.toLower(), "settings", DatabaseManager::ACCESSTYPE_REMOTE);
 
     emit loginSuccess();
 }
@@ -528,12 +555,14 @@ void UserManager::logout()
 
     qDebug() << "LOGOUT";
 
+    stopListeningToChanges();
+
     d->username = "";
     d->password = "";
 
-    d->firstTime = true;
+    DatabaseManager::singleton()->endSession(DatabaseManager::ACCESSTYPE_REMOTE);
 
-    stopListeningToChanges();
+    d->firstTime = true;
 }
 
 void UserManager::forgotDetails(const QString &email)
@@ -579,7 +608,14 @@ void UserManager::forgotDetailsStepRetrieveEmailDocumentReply(const bool &succes
     {
         DatabaseManager::singleton()->clearCredentials();
         d->email = "";
-        emit forgotDetailsFailed("This email is not linked to any BeatWhale account.");
+        if(document.object().value("error").toString() == "not_found")
+        {
+            emit forgotDetailsFailed("This email is not linked to any BeatWhale account.");
+        }
+        else
+        {
+            emit forgotDetailsFailed("Problem with BeatWhale database. Please try again later.");
+        }
         return;
     }
 
@@ -617,6 +653,8 @@ void UserManager::forgotDetailsStepUserDocumentRevReply(const bool &success, con
 void UserManager::forgotDetailsStepResetPassword(const QString& rev)
 {
     Q_D(UserManager);
+
+    d->newPassword = "";
 
     QString randomHex;
     for(int i = 0; i < 16; i++)
@@ -668,14 +706,36 @@ void UserManager::forgotDetailsStepResetPasswordReply(const bool& success, const
         return;
     }
 
+    forgotDetailsStepSendEmail();
+}
+
+void UserManager::forgotDetailsStepSendEmail()
+{
+    Q_D(UserManager);
+
     //Send email
     if(!d->emailManager) d->emailManager = new EmailManager(this);
 
-    d->emailManager->setEmailData("info@beatwhale.com", d->adminPassword, "BeatWhale Team", "server.flexiserver150.com", 25, false);
+    connect(d->emailManager, SIGNAL(sendEmailFinished(bool,QString)), SLOT(forgotDetailsStepSendEmailReply(bool,QString)));
+    d->emailManager->setEmailData(d->beatwhaleEmail, d->beatwhaleEmailPassword, "BeatWhale Team", d->beatwhaleEmailServer, d->beatwhaleEmailPort, false);
     d->emailManager->sendEmail(d->email, "", "BeatWhale Password Reset", "Here are your credentials:\n\n\nUsername: " +
                                d->username + "\nNew password: " + d->newPassword + "\n\n\nNow it's time to go back in!\n-BeatWhale Team");
+}
 
-    emit forgotDetailsSuccess();
+void UserManager::forgotDetailsStepSendEmailReply(const bool &success, const QString &message)
+{
+    Q_D(UserManager);
+
+    disconnect(d->emailManager, SIGNAL(sendEmailFinished(bool,QString)), this, SLOT(forgotDetailsStepSendEmailReply(bool,QString)));
+
+    if(success)
+    {
+        emit forgotDetailsSuccess();
+    }
+    else
+    {
+        emit forgotDetailsFailed("Error sending email. Please try again.");
+    }
 }
 
 void UserManager::changePassword(const QString &newPassword)
@@ -881,7 +941,7 @@ void UserManager::deleteAccountStepDeleteDatabase()
     Q_D(UserManager);
 
     connect(DatabaseManager::singleton(), SIGNAL(databaseDeleted(bool)), SLOT(deleteAccountStepDeleteDatabaseReply()));
-    DatabaseManager::singleton()->deleteDatabase("u_" + d->username, DatabaseManager::ACCESSTYPE_REMOTE);
+    DatabaseManager::singleton()->deleteDatabase("u_" + d->username.toLower(), DatabaseManager::ACCESSTYPE_REMOTE);
 }
 
 void UserManager::deleteAccountStepDeleteDatabaseReply()
@@ -954,7 +1014,7 @@ void UserManager::startListeningToChanges()
     connect(DatabaseManager::singleton(), SIGNAL(listenToChangesFailed(QString)), SLOT(listeningToChangesFailed(QString)));
     connect(DatabaseManager::singleton(), SIGNAL(changesMade(QString,QString)), SLOT(changesMade(QString,QString)));
     connect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), SLOT(documentUpdatedFeedback(bool,QString)));
-    DatabaseManager::singleton()->listenToChanges("u_" + d->username, "videos", DatabaseManager::ACCESSTYPE_REMOTE);
+    DatabaseManager::singleton()->listenToChanges("u_" + d->username.toLower(), "videos", DatabaseManager::ACCESSTYPE_REMOTE);
 }
 
 bool UserManager::stopListeningToChanges()
@@ -966,7 +1026,7 @@ bool UserManager::stopListeningToChanges()
         disconnect(DatabaseManager::singleton(), SIGNAL(listenToChangesFailed(QString)), this, SLOT(listeningToChangesFailed(QString)));
         disconnect(DatabaseManager::singleton(), SIGNAL(changesMade(QString,QString)), this, SLOT(changesMade(QString,QString)));
         disconnect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), this, SLOT(documentUpdatedFeedback(bool,QString)));
-        return DatabaseManager::singleton()->stopListenToChanges("u_" + d->username, "videos", DatabaseManager::ACCESSTYPE_REMOTE);
+        return DatabaseManager::singleton()->stopListenToChanges("u_" + d->username.toLower(), "videos", DatabaseManager::ACCESSTYPE_REMOTE);
     }
     return false;
 }
@@ -1002,7 +1062,7 @@ void UserManager::uploadDocument()
     QJsonObject obj = d->documentToUpload.object();
     obj.insert("_rev", QJsonValue(d->currentRevision));
     d->documentToUpload = QJsonDocument(obj);
-    DatabaseManager::singleton()->updateDocument("u_" + d->username, "videos", d->documentToUpload.toJson(), DatabaseManager::ACCESSTYPE_REMOTE);
+    DatabaseManager::singleton()->updateDocument("u_" + d->username.toLower(), "videos", d->documentToUpload.toJson(), DatabaseManager::ACCESSTYPE_REMOTE);
 
     d->waitingForChanges = true;
 }
@@ -1019,7 +1079,7 @@ void UserManager::changesMade(const QString &id, const QString &revision)
     d->currentRevision = revision;
 
     connect(DatabaseManager::singleton(), SIGNAL(documentRetrieved(bool,QString,QJsonDocument)), SLOT(documentUpdate(bool,QString,QJsonDocument)));
-    DatabaseManager::singleton()->retrieveDocument("u_" + d->username, "videos", DatabaseManager::ACCESSTYPE_REMOTE);
+    DatabaseManager::singleton()->retrieveDocument("u_" + d->username.toLower(), "videos", DatabaseManager::ACCESSTYPE_REMOTE);
 }
 
 void UserManager::documentUpdate(const bool &success, const QString &id, const QJsonDocument &document)
@@ -1109,7 +1169,7 @@ void UserManager::documentUpdatedFeedback(const bool &success, const QString &id
     qDebug() << "Failed to update document... going to fetch document head";
 
     connect(DatabaseManager::singleton(), SIGNAL(revisionRetrieved(bool,QString,QString)), SLOT(documentRevisionRetrieved(bool,QString,QString)));
-    DatabaseManager::singleton()->retrieveRevision("u_" + d->username, "videos", DatabaseManager::ACCESSTYPE_REMOTE);
+    DatabaseManager::singleton()->retrieveRevision("u_" + d->username.toLower(), "videos", DatabaseManager::ACCESSTYPE_REMOTE);
 }
 
 void UserManager::documentRevisionRetrieved(const bool &success, const QString &id, const QString& revision)
@@ -1123,7 +1183,7 @@ void UserManager::documentRevisionRetrieved(const bool &success, const QString &
     if(!success)
     {
         qDebug() << "No success in revision retrieving";
-        documentUpdatedFeedback(false, d->username);
+        documentUpdatedFeedback(false, id);
         return;
     }
 
