@@ -1,5 +1,6 @@
 import QtQuick 2.0
 import QmlVlc 0.1
+import BeatWhaleAPI 1.0
 
 Rectangle {
     id: videoHolder
@@ -8,13 +9,26 @@ Rectangle {
     property variant mediaSource
     property bool fullscreen: false
     property bool aspectFill: false
+    property bool thumbnailHovered: false
 
     signal close()
     signal fullscreenVideoRequested()
 
-    onFullscreenChanged: {
-        if(fullscreen) {
-            forceActiveFocus()
+    onVisibleChanged: {
+        if(fullscreen) forceActiveFocus()
+
+        buttonShowVideoFullscreen.opacity = 0
+        buttonShowVideoMinimized.opacity = 0
+    }
+
+    onThumbnailHoveredChanged: {
+        if(thumbnailHovered) {
+            buttonShowVideoMinimized.opacity = 1
+            buttonShowVideoFullscreen.opacity = 1
+        }
+        else {
+            buttonShowVideoMinimized.opacity = 0
+            buttonShowVideoFullscreen.opacity = 0
         }
     }
 
@@ -29,13 +43,11 @@ Rectangle {
             hoverEnabled: true
 
             onEntered: {
-                buttonShowVideoMinimized.opacity = 1
-                buttonShowVideoFullscreen.opacity = 1
+                thumbnailHovered = true
             }
 
             onExited: {
-                buttonShowVideoMinimized.opacity = 0
-                buttonShowVideoFullscreen.opacity = 0
+                thumbnailHovered = false
             }
 
             onClicked: {
@@ -47,10 +59,10 @@ Rectangle {
             id: buttonShowVideoMinimized
             width: 35
             height: 35
-            //color: "white"
-            source: "qrc:/images/zoomOut"
+            source: "qrc:/images/remove"
             opacity: 0
             visible: !fullscreen
+            smooth: true
 
             sourceSize.width: 40
             sourceSize.height: 40
@@ -63,11 +75,28 @@ Rectangle {
             }
 
             Behavior on opacity {
-                NumberAnimation { property: "opacity"; duration: 200; easing.type: Easing.OutSine }
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+            }
+
+            Behavior on scale {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
             }
 
             MouseArea {
                 anchors.fill: parent
+                hoverEnabled: true
+
+                onEntered: {
+                    thumbnailHovered = true
+                    parent.opacity = 1
+                    parent.scale = 1.1
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                }
+
+                onExited: {
+                    parent.scale = 1
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                }
 
                 onClicked: {
                     close()
@@ -79,10 +108,10 @@ Rectangle {
             id: buttonShowVideoFullscreen
             width: 35
             height: 35
-            //color: "white"
             source: "qrc:/images/fullscreen"
             opacity: 0
             visible: !fullscreen
+            smooth: true
 
             sourceSize.width: 40
             sourceSize.height: 40
@@ -95,11 +124,28 @@ Rectangle {
             }
 
             Behavior on opacity {
-                NumberAnimation { property: "opacity"; duration: 200; easing.type: Easing.OutSine }
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+            }
+
+            Behavior on scale {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
             }
 
             MouseArea {
                 anchors.fill: parent
+                hoverEnabled: true
+
+                onEntered: {
+                    thumbnailHovered = true
+                    parent.opacity = 1
+                    parent.scale = 1.1
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                }
+
+                onExited: {
+                    parent.scale = 1
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                }
 
                 onClicked: {
                     fullscreenVideoRequested()

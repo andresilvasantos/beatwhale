@@ -82,7 +82,7 @@ bool PlaylistsManager::isFavorited(const QString& id) const
     return d->favorites.contains(id);
 }
 
-void PlaylistsManager::addToFavorites(const QString &id, const QString &title, const QString &subTitle, const QString &thumbnail,
+void PlaylistsManager::addFavorite(const QString &id, const QString &title, const QString &subTitle, const QString &thumbnail,
                                       const QString& duration, QString timestamp)
 {
     Q_D(PlaylistsManager);
@@ -122,7 +122,7 @@ void PlaylistsManager::addToFavorites(const QString &id, const QString &title, c
     emit favoritesChanged();
 }
 
-bool PlaylistsManager::removeFromFavorites(const QString &id)
+bool PlaylistsManager::removeFavorite(const QString &id)
 {
     Q_D(PlaylistsManager);
 
@@ -145,6 +145,42 @@ bool PlaylistsManager::removeFromFavorites(const QString &id)
     delete videoItem;
     emit favoritesChanged();
     return true;
+}
+
+void PlaylistsManager::removeFavorites(const QStringList &ids)
+{
+    Q_D(PlaylistsManager);
+
+    foreach(QString id, ids)
+    {
+        if(!d->favorites.contains(id)) continue;
+
+        if(d->playlistsDocument.object().value("Favorites").toObject().contains(id))
+        {
+            JsonHelper::removeKey(d->playlistsDocument, "Favorites", id);
+        }
+
+        VideoItem *videoItem = d->favorites.value(id);
+        d->favorites.remove(id);
+
+        if(ids.count() == 1)
+        {
+            QString message;
+            if(!videoItem->subTitle().isEmpty()) message = "Removed " + videoItem->title() + " - " + videoItem->subTitle() + " from favorites";
+            else message = "Removed " + videoItem->title() + " from favorites";
+            ApplicationManager::singleton()->triggerNotification(message);
+        }
+
+        delete videoItem;
+    }
+    UserManager::singleton()->updateDocument(d->playlistsDocument);
+
+    if(ids.count() > 1)
+    {
+        ApplicationManager::singleton()->triggerNotification("Removed " + QString::number(ids.count()) + " items from favorites");
+    }
+
+    emit favoritesChanged();
 }
 
 QList<QObject *> PlaylistsManager::favorites() const

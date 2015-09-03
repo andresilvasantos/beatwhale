@@ -1,10 +1,11 @@
 import QtQuick 2.2
 import QtQuick.Controls 1.1
 import QtQuick.Window 2.0
+import BeatWhaleAPI 1.0
 
 ApplicationWindow {
     id: mainWindow
-    title: qsTr("BeatWhale vAlpha")
+    title: qsTr("BeatWhale vAlpha (" + ApplicationManager.version() + ")")
     width: 1000
     height: 600
     minimumWidth: 800

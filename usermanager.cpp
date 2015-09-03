@@ -546,6 +546,7 @@ void UserManager::loginReply(const bool &success, const bool& authProblem)
     connect(DatabaseManager::singleton(), SIGNAL(documentRetrieved(bool,QString,QJsonDocument)), SLOT(documentSettingsRetrieved(bool,QString,QJsonDocument)));
     DatabaseManager::singleton()->retrieveDocument("u_" + d->username.toLower(), "settings", DatabaseManager::ACCESSTYPE_REMOTE);
 
+    QTimer::singleShot(10000, ApplicationManager::singleton(), SLOT(checkForUpdates()));
     emit loginSuccess();
 }
 
@@ -1000,6 +1001,8 @@ void UserManager::deleteAccountStepDeleteEmailReply(const bool &success, const Q
     d->localSettings.setValue("login/remember", false);
     d->localSettings.remove("login/credentials");
 
+    stopListeningToChanges();
+
     d->username = "";
     d->password = "";
     d->email = "";
@@ -1011,10 +1014,13 @@ void UserManager::startListeningToChanges()
 {
     Q_D(UserManager);
 
-    connect(DatabaseManager::singleton(), SIGNAL(listenToChangesFailed(QString)), SLOT(listeningToChangesFailed(QString)));
-    connect(DatabaseManager::singleton(), SIGNAL(changesMade(QString,QString)), SLOT(changesMade(QString,QString)));
-    connect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), SLOT(documentUpdatedFeedback(bool,QString)));
-    DatabaseManager::singleton()->listenToChanges("u_" + d->username.toLower(), "videos", DatabaseManager::ACCESSTYPE_REMOTE);
+    if(d->username.count())
+    {
+        connect(DatabaseManager::singleton(), SIGNAL(listenToChangesFailed(QString)), SLOT(listeningToChangesFailed(QString)));
+        connect(DatabaseManager::singleton(), SIGNAL(changesMade(QString,QString)), SLOT(changesMade(QString,QString)));
+        connect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), SLOT(documentUpdatedFeedback(bool,QString)));
+        DatabaseManager::singleton()->listenToChanges("u_" + d->username.toLower(), "videos", DatabaseManager::ACCESSTYPE_REMOTE);
+    }
 }
 
 bool UserManager::stopListeningToChanges()
@@ -1040,7 +1046,7 @@ void UserManager::listeningToChangesFailed(const QString& id)
     disconnect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), this, SLOT(documentUpdatedFeedback(bool,QString)));
     ApplicationManager::singleton()->triggerNotification("Connection problem to BeatWhale server.");
 
-    QTimer::singleShot(5000, this, SLOT(startListeningToChanges()));
+    QTimer::singleShot(10000, this, SLOT(startListeningToChanges()));
 }
 
 void UserManager::updateDocument(const QJsonDocument &document)
@@ -1121,7 +1127,7 @@ void UserManager::documentUpdate(const bool &success, const QString &id, const Q
                 foreach(QString key, favoritesObj.keys())
                 {
                     QJsonObject itemObj = favoritesObj.value(key).toObject();
-                    PlaylistsManager::singleton()->addToFavorites(key, itemObj.value("title").toString(), itemObj.value("subtitle").toString(), itemObj.value("thumbnail").toString(),
+                    PlaylistsManager::singleton()->addFavorite(key, itemObj.value("title").toString(), itemObj.value("subtitle").toString(), itemObj.value("thumbnail").toString(),
                                                                   itemObj.value("duration").toString(), itemObj.value("timestamp").toString());
                 }
             }

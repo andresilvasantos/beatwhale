@@ -15,6 +15,7 @@ Rectangle {
     property bool selected
     property bool currentlyPlaying: false
     property bool favorited: PlaylistsManager.isFavorited(id)
+    property bool thumbnailHovered: false
 
     signal addVideo()
     signal playVideo()
@@ -30,21 +31,29 @@ Rectangle {
     signal dragStarted()
     signal dragFinished()
 
-    //    Rectangle {
-    //        id: videoPlayingNowRect
-    //        width: thumbnailImage.width + 6
-    //        height: thumbnailImage.height + 6
-    //        color: "transparent"
-    //        radius: 5
-    //        border.color: "#00addc"
-    //        border.width: 5
-    //        visible: playQueue && currentlyPlaying
+    onThumbnailHoveredChanged: {
 
-    //        anchors {
-    //            top: parent.top
-    //            horizontalCenter: parent.horizontalCenter
-    //        }
-    //    }
+        if(thumbnailHovered) {
+            thumbnailHovered = true
+            playNowImage.opacity = .5
+            addToQueueImage.opacity = .5
+            removeVideoImage.opacity = .3
+            favoriteVideoImage.opacity = favorited ? .7 : .3
+            thumbnailHovered = true
+
+            resultRect.entered()
+        }
+        else {
+            playNowImage.opacity = 0
+            addToQueueImage.opacity = 0
+            removeVideoImage.opacity = 0
+            if(!favorited) favoriteVideoImage.opacity = 0
+            thumbnailHovered = false
+
+            resultRect.exited()
+        }
+    }
+
 
     Rectangle {
         id: videoSelectionRect
@@ -88,30 +97,44 @@ Rectangle {
 
         source: videoThumbnail
 
-        MouseArea {
+        Item {
+            id: dragItem
             anchors.fill: parent
-            hoverEnabled: true
 
-            onEntered: {
-                playNowImage.opacity = .5
-                addToQueueImage.opacity = .5
-                removeVideoImage.opacity = .3
-                favoriteVideoImage.opacity = favorited ? .7 : .3
+            property bool dragActive: dragArea.drag.active
+            Drag.dragType: Drag.Automatic
 
-                resultRect.entered()
+            onDragActiveChanged: {
+                if(dragActive) {
+                    if(!selected) selectionRequest()
+                    Drag.start();
+                    dragStarted()
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_DRAGGING)
+                }
+                else {
+                    Drag.drop();
+                    dragFinished()
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                }
             }
 
-            onExited: {
-                playNowImage.opacity = 0
-                addToQueueImage.opacity = 0
-                removeVideoImage.opacity = 0
-                if(!favorited) favoriteVideoImage.opacity = 0
+            MouseArea {
+                id: dragArea
+                anchors.fill: parent
+                drag.target: parent
+                hoverEnabled: true
 
-                resultRect.exited()
-            }
+                onEntered: {
+                    thumbnailHovered = true
+                }
 
-            onClicked: {
-                selectionRequest()
+                onExited: {
+                    thumbnailHovered = false
+                }
+
+                onClicked: {
+                    selectionRequest()
+                }
             }
         }
 
@@ -161,10 +184,8 @@ Rectangle {
                 topMargin: 5
             }
 
-            property bool hovered: false
-
             Behavior on opacity {
-                NumberAnimation { property: "opacity"; duration: 200; easing.type: Easing.OutSine }
+                NumberAnimation { property: "opacity"; duration: 400; easing.type: Easing.OutSine }
             }
 
             MouseArea {
@@ -172,13 +193,14 @@ Rectangle {
                 hoverEnabled: true
 
                 onEntered: {
-                    parent.hovered = true
+                    thumbnailHovered = true
                     removeVideoImage.opacity = .7
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
                 }
 
                 onExited: {
-                    parent.hovered = false
                     removeVideoImage.opacity = .3
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
                 }
 
                 onClicked: {
@@ -196,7 +218,7 @@ Rectangle {
             source: favorited ? "qrc:/images/heartChecked" : "qrc:/images/heartUnchecked"
             opacity: favorited ? .7 : 0
             asynchronous: true
-            smooth: false
+            smooth: true
             visible: opacity != 0
 
             anchors {
@@ -206,10 +228,13 @@ Rectangle {
                 bottomMargin: 5
             }
 
-            property bool hovered: false
 
             Behavior on opacity {
-                NumberAnimation { property: "opacity"; duration: 200; easing.type: Easing.OutSine }
+                NumberAnimation { property: "opacity"; duration: 400; easing.type: Easing.OutSine }
+            }
+
+            Behavior on scale {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
             }
 
             MouseArea {
@@ -217,20 +242,29 @@ Rectangle {
                 hoverEnabled: true
 
                 onEntered: {
-                    parent.hovered = true
+                    thumbnailHovered = true
                     favoriteVideoImage.opacity = .7
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
                 }
 
                 onExited: {
-                    parent.hovered = false
                     if(!favorited) favoriteVideoImage.opacity = .3
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
                 }
 
                 onClicked: {
                     favorited = !favorited
 
-                    if(favorited) PlaylistsManager.addToFavorites(videoID, videoTitle, videoSubTitle, videoThumbnail, videoDuration)
-                    else PlaylistsManager.removeFromFavorites(videoID)
+                    if(favorited) PlaylistsManager.addFavorite(videoID, videoTitle, videoSubTitle, videoThumbnail, videoDuration)
+                    else PlaylistsManager.removeFavorite(videoID)
+                }
+
+                onPressed: {
+                    parent.scale = 1.2
+                }
+
+                onReleased: {
+                    parent.scale = 1
                 }
             }
         }
@@ -244,9 +278,8 @@ Rectangle {
             source: "qrc:/images/addQueue"
             opacity: 0
             asynchronous: true
-            smooth: false
+            smooth: true
             visible: !playQueue && opacity != 0
-            //visible: (!playQueue || currentVideoIndex != index) && opacity != 0
 
             anchors {
                 right: playNowImage.left
@@ -255,10 +288,12 @@ Rectangle {
                 bottomMargin: 5
             }
 
-            property bool hovered: false
-
             Behavior on opacity {
-                NumberAnimation { property: "opacity"; duration: 200; easing.type: Easing.OutSine }
+                NumberAnimation { property: "opacity"; duration: 400; easing.type: Easing.OutSine }
+            }
+
+            Behavior on scale {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
             }
 
             MouseArea {
@@ -266,17 +301,26 @@ Rectangle {
                 hoverEnabled: true
 
                 onEntered: {
-                    parent.hovered = true
+                    thumbnailHovered = true
                     addToQueueImage.opacity = 1
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
                 }
 
                 onExited: {
-                    parent.hovered = false
                     addToQueueImage.opacity = .5
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
                 }
 
                 onClicked: {
                     addVideo()
+                }
+
+                onPressed: {
+                    parent.scale = 1.2
+                }
+
+                onReleased: {
+                    parent.scale = 1
                 }
             }
         }
@@ -290,7 +334,7 @@ Rectangle {
             source: "qrc:/images/play"
             opacity: 0
             asynchronous: true
-            smooth: false
+            smooth: true
             visible: opacity != 0
 
             anchors {
@@ -300,10 +344,12 @@ Rectangle {
                 bottomMargin: 5
             }
 
-            property bool hovered: false
-
             Behavior on opacity {
-                NumberAnimation { property: "opacity"; duration: 200; easing.type: Easing.OutSine }
+                NumberAnimation { property: "opacity"; duration: 400; easing.type: Easing.OutSine }
+            }
+
+            Behavior on scale {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
             }
 
             MouseArea {
@@ -311,17 +357,28 @@ Rectangle {
                 hoverEnabled: true
 
                 onEntered: {
-                    parent.hovered = true
+                    thumbnailHovered = true
                     playNowImage.opacity = 1
+
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
                 }
 
                 onExited: {
-                    parent.hovered = false
                     playNowImage.opacity = .5
+
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
                 }
 
                 onClicked: {
                     playVideo()
+                }
+
+                onPressed: {
+                    parent.scale = 1.2
+                }
+
+                onReleased: {
+                    parent.scale = 1
                 }
             }
         }
@@ -411,33 +468,6 @@ Rectangle {
 
         onTriggered: {
             showTooltip(videoTitle, titleText.x + titleTextMouseArea.mouseX, titleText.y + titleTextMouseArea.mouseY)
-        }
-    }
-
-    Item {
-        id: dragItem
-        anchors.fill: thumbnailImage
-
-        property bool dragActive: dragArea.drag.active
-        Drag.dragType: Drag.Automatic
-
-        onDragActiveChanged: {
-            if(dragActive) {
-                if(!selected) selectionRequest()
-                Drag.start();
-                dragStarted()
-            }
-            else {
-                Drag.drop();
-                dragFinished()
-            }
-        }
-
-        MouseArea {
-            id: dragArea
-            anchors.fill: parent
-            drag.target: parent
-            propagateComposedEvents: true
         }
     }
 }

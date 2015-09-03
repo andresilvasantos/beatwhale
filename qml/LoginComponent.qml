@@ -12,6 +12,8 @@ Rectangle {
 
         Item {
             function loggingIn() {
+                if(state != "LOGGED_OFF") return
+
                 if(usernameInput.text.length == 0 || usernameInput.text == "username" ||
                         passwordInput.text.length == 0 || passwordInput.text == "password") return;
 
@@ -160,7 +162,7 @@ Rectangle {
                                 else if(focus && text == "password" && echoMode == TextInput.Normal)
                                 {
                                     text = ""
-                                    font.family = "Arial Narrow"
+                                    font.family = "Arial"
                                     echoMode = TextInput.Password
                                     opacity = 1
                                 }
@@ -208,6 +210,15 @@ Rectangle {
 
                 MouseArea {
                     anchors.fill: parent
+                    hoverEnabled: true
+
+                    onEntered: {
+                        ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                    }
+
+                    onExited: {
+                        ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    }
 
                     onClicked: {
                         loginComponentLoader.sourceComponent = forgotDetailsComponent
@@ -232,7 +243,7 @@ Rectangle {
                 }
             }
 
-            TOPButton {
+            BWButton {
                 id: loginButton
                 width: parent.width * 0.9
                 height: 45
@@ -324,7 +335,7 @@ Rectangle {
                     var password = UserManager.storedPassword()
                     if(password.length) {
                         passwordInput.text = password
-                        passwordInput.font.family = "Arial Narrow"
+                        passwordInput.font.family = "Arial"
                         passwordInput.echoMode = TextInput.Password
                         passwordInput.opacity = 1
                     }
@@ -453,7 +464,7 @@ Rectangle {
                 }
             }
 
-            TOPButton {
+            BWButton {
                 id: sendEmailButton
                 width: parent.width * 0.42
                 height: 45
@@ -461,6 +472,8 @@ Rectangle {
                 hoverColor: "#0093bb"
                 selectedColor: "#1fb3db"
                 radius: 5
+
+                property bool tooSoon: false
 
                 anchors {
                     right: emailInputHolder.right
@@ -478,11 +491,18 @@ Rectangle {
                 }
 
                 onClicked: {
-                    sendEmailInformation()
+                    if(!sendEmailButton.tooSoon) {
+                        sendEmailInformation()
+                        sendEmailButton.tooSoon = true
+                        resendEmailTimer.start()
+                    }
+                    else {
+                        statusText.text = "Please wait 1 minute before sending a new email."
+                    }
                 }
             }
 
-            TOPButton {
+            BWButton {
                 id: backButton
                 width: parent.width * 0.4
                 height: 45
@@ -508,6 +528,15 @@ Rectangle {
 
                 onClicked: {
                     loginComponentLoader.sourceComponent = loginFormComponent
+                }
+            }
+
+            Timer {
+                id: resendEmailTimer
+                interval: 60000
+
+                onTriggered: {
+                    sendEmailButton.tooSoon = false
                 }
             }
 

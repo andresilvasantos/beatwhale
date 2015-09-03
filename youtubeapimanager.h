@@ -12,16 +12,25 @@ class YoutubeAPIManager : public QObject
 {
     Q_OBJECT
 
+    Q_ENUMS(OrderFilter)
+    Q_ENUMS(DurationFilter)
+
 public:
-    enum Order
+    enum OrderFilter
     {
         ORDER_RELEVANCE,
         ORDER_DATE,
-        ORDER_VIEWCOUNT,
-        ORDER_RATING
+        ORDER_RATING,
+        ORDER_VIEWCOUNT
     };
 
-    Q_ENUMS(Order)
+    enum DurationFilter
+    {
+        DURATION_ANY,
+        DURATION_SHORT,
+        DURATION_MEDIUM,
+        DURATION_LONG
+    };
 
     static YoutubeAPIManager* singleton();
     static void declareQML();
@@ -30,13 +39,9 @@ public:
 
     void removeTimer(QNetworkReply *reply);
 
-    /*
-     * -1 - ANY
-     * 0 - SHORT
-     * 1 - MEDIUM
-     * 2 - LONG
-     * */
-    Q_INVOKABLE void setVideoDurationSearch(int videoDuration);
+
+    Q_INVOKABLE void setOrderFilter(OrderFilter orderFilter);
+    Q_INVOKABLE void setDurationFilter(DurationFilter durationFilter);
 
 signals:
     void searchSuccess(const QString& documentString);
@@ -50,8 +55,8 @@ signals:
 public slots:
     void ignoreSSLErrors(QNetworkReply *reply, QList<QSslError> errors);
 
-    Q_INVOKABLE void search(const QString& search, const Order& order = ORDER_RELEVANCE);
-    Q_INVOKABLE void search(const QString& search, const QString& nextPageToken, const Order& order = ORDER_RELEVANCE);
+    Q_INVOKABLE void search(const QString& search);
+    Q_INVOKABLE void search(const QString& search, const QString& nextPageToken);
     Q_INVOKABLE void videoUrl(const QString& videoID);
     Q_INVOKABLE void videoDuration(const QString& videoID);
 

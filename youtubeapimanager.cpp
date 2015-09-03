@@ -19,7 +19,8 @@ public:
         networkManager(0),
         youtubeUrlProcess(0),
         youtubeDurationProcess(0),
-        videoDurationSearch(-1)
+        orderFilter(YoutubeAPIManager::ORDER_RELEVANCE),
+        durationFilter(YoutubeAPIManager::DURATION_ANY)
     {
         QSettings settings("beatwhale_config.ini", QSettings::IniFormat);
         youtubeAPIKey = settings.value("youtube_key").toString();
@@ -49,7 +50,9 @@ public:
 
     QJsonDocument searchDocument;
     QStringList videoDurationRequests;
-    int videoDurationSearch;
+
+    YoutubeAPIManager::OrderFilter orderFilter;
+    YoutubeAPIManager::DurationFilter durationFilter;
 };
 
 YoutubeAPIManager::YoutubeAPIManager(QObject *parent) :
@@ -109,20 +112,26 @@ void YoutubeAPIManager::ignoreSSLErrors(QNetworkReply* reply,QList<QSslError> er
    reply->ignoreSslErrors(errors);
 }
 
-void YoutubeAPIManager::setVideoDurationSearch(int videoDuration)
+void YoutubeAPIManager::setOrderFilter(YoutubeAPIManager::OrderFilter orderFilter)
 {
     Q_D(YoutubeAPIManager);
-    d->videoDurationSearch = videoDuration;
+    d->orderFilter = orderFilter;
 }
 
-void YoutubeAPIManager::search(const QString &search, const Order& order)
+void YoutubeAPIManager::setDurationFilter(YoutubeAPIManager::DurationFilter durationFilter)
+{
+    Q_D(YoutubeAPIManager);
+    d->durationFilter = durationFilter;
+}
+
+void YoutubeAPIManager::search(const QString &search)
 {
     Q_D(YoutubeAPIManager);
 
     d->searchDocument = QJsonDocument();
 
     QString orderBy;
-    switch(order)
+    switch(d->orderFilter)
     {
     case ORDER_DATE:
         orderBy = "date";
@@ -133,25 +142,28 @@ void YoutubeAPIManager::search(const QString &search, const Order& order)
     case ORDER_VIEWCOUNT:
         orderBy = "viewCount";
         break;
-    default:
     case ORDER_RELEVANCE:
+    default:
         orderBy = "relevance";
+        break;
     }
 
     QString videoDurationStr;
-    switch(d->videoDurationSearch)
+    switch(d->durationFilter)
     {
-    case 0:
+    case DURATION_SHORT:
         videoDurationStr = "short";
         break;
-    case 1:
+    case DURATION_MEDIUM:
         videoDurationStr = "medium";
         break;
-    case 2:
+    case DURATION_LONG:
         videoDurationStr = "long";
         break;
+    case DURATION_ANY:
     default:
         videoDurationStr = "any";
+        break;
     }
 
     QUrl url("https://www.googleapis.com/youtube/v3/search?part=snippet&q=" + search + "&type=video&videoDuration=" + videoDurationStr +
@@ -172,14 +184,14 @@ void YoutubeAPIManager::search(const QString &search, const Order& order)
     d->repliesTimeoutMap.insert(timer, reply);
 }
 
-void YoutubeAPIManager::search(const QString &search, const QString &nextPageToken, const Order& order)
+void YoutubeAPIManager::search(const QString &search, const QString &nextPageToken)
 {
     Q_D(YoutubeAPIManager);
 
     d->searchDocument = QJsonDocument();
 
     QString orderBy;
-    switch(order)
+    switch(d->orderFilter)
     {
     case ORDER_DATE:
         orderBy = "date";
@@ -190,25 +202,28 @@ void YoutubeAPIManager::search(const QString &search, const QString &nextPageTok
     case ORDER_VIEWCOUNT:
         orderBy = "viewCount";
         break;
-    default:
     case ORDER_RELEVANCE:
+    default:
         orderBy = "relevance";
+        break;
     }
 
     QString videoDurationStr;
-    switch(d->videoDurationSearch)
+    switch(d->durationFilter)
     {
-    case 0:
+    case DURATION_SHORT:
         videoDurationStr = "short";
         break;
-    case 1:
+    case DURATION_MEDIUM:
         videoDurationStr = "medium";
         break;
-    case 2:
+    case DURATION_LONG:
         videoDurationStr = "long";
         break;
+    case DURATION_ANY:
     default:
         videoDurationStr = "any";
+        break;
     }
 
     QUrl url("https://www.googleapis.com/youtube/v3/search?part=snippet&q=" + search + "&type=video&videoDuration=" + videoDurationStr +

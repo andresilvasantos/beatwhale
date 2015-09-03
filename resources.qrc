@@ -23,6 +23,7 @@
         <file alias="openQueueToggled">resources/open_queue_highlight.png</file>
         <file alias="play">resources/play2.png</file>
         <file alias="addQueue">resources/add_queue.png</file>
+        <file alias="arrowMinimize">resources/arrow_minimize.png</file>
     </qresource>
     <qresource prefix="/icons">
         <file alias="lock">resources/lock.png</file>
@@ -50,6 +51,7 @@
         <file alias="BWPopup.qml">qml/BWPopup.qml</file>
         <file alias="LoginComponent.qml">qml/LoginComponent.qml</file>
         <file alias="RegisterComponent.qml">qml/RegisterComponent.qml</file>
+        <file alias="BWMediaControlButton.qml">qml/BWMediaControlButton.qml</file>
     </qresource>
     <qresource prefix="/fonts">
         <file alias="openSans">resources/OpenSans-Regular.ttf</file>

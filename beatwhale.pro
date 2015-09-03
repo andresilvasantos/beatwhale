@@ -41,7 +41,12 @@ INCLUDEPATH += ../../TOP/TOP-VLC
 INCLUDEPATH += ../../TOP/TOP-Social
 
 win32 {
-    RC_FILE = beatwhale.rc
+    VERSION = 0.7.2.0
+    RC_ICONS="icon/icon.ico"
+    QMAKE_TARGET_COMPANY = "BeatWhale Inc"
+    QMAKE_TARGET_PRODUCT = "BeatWhale"
+    QMAKE_TARGET_DESCRIPTION = ""
+    QMAKE_TARGET_COPYRIGHT = "Copyright © 2015 BeatWhale Inc"
 }
 
 unix {
@@ -146,6 +151,7 @@ HEADERS += \
 # Please do not modify the following two lines. Required for deployment.
 #include(qtquick2applicationviewer/qtquick2applicationviewer.pri)
 qtcAddDeployment()
+
 
 RESOURCES += \
     resources.qrc

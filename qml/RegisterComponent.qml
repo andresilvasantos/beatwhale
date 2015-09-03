@@ -254,7 +254,7 @@ Rectangle {
                                 else if(focus && text == "password" && echoMode == TextInput.Normal)
                                 {
                                     text = ""
-                                    font.family = "Arial Narrow"
+                                    font.family = "Arial"
                                     echoMode = TextInput.Password
                                     opacity = 1
                                 }
@@ -281,7 +281,7 @@ Rectangle {
                 }
             }
 
-            TOPButton {
+            BWButton {
                 id: registerButton
                 width: parent.width * 0.9
                 height: 45
@@ -398,6 +398,8 @@ Rectangle {
                 font.family: "Open Sans"
                 color: "#929292"
 
+                property bool tooSoon: false
+
                 anchors {
                     right: codeInputHolder.right
                     top: codeInputHolder.bottom
@@ -406,10 +408,26 @@ Rectangle {
 
                 MouseArea {
                     anchors.fill: parent
+                    hoverEnabled: true
+
+                    onEntered: {
+                        ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                    }
+
+                    onExited: {
+                        ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    }
 
                     onClicked: {
-                        UserManager.sendCodeByEmail(email, code)
-                        statusMessage = "New email sent."
+                        if(!resendEmailText.tooSoon) {
+                            UserManager.sendCodeByEmail(email, code)
+                            statusMessage = "New email sent."
+                            resendEmailText.tooSoon = true
+                            resendEmailTimer.start()
+                        }
+                        else {
+                            statusMessage = "Please wait 30 seconds before sending a new email."
+                        }
                     }
                 }
             }
@@ -458,6 +476,20 @@ Rectangle {
                 onClicked: {
                     confirmCode()
                 }
+            }
+
+            Timer {
+                id: resendEmailTimer
+                interval: 30000
+
+                onTriggered: {
+                    resendEmailText.tooSoon = false
+                }
+            }
+
+            Component.onCompleted: {
+                resendEmailText.tooSoon = true
+                resendEmailTimer.start()
             }
         }
     }

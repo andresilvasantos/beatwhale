@@ -10,18 +10,23 @@ class ApplicationManagerPrivate
 {
 public:
     ApplicationManagerPrivate() :
+        version("0.7.2"),
         window(0),
         fullscreen(false),
         maximized(false),
         mouseX(0),
         mouseY(0),
         dragging(false),
-        notificationsEnabled(true)
+        notificationsEnabled(true),
+        networkManager(0)
     {}
 
     virtual ~ApplicationManagerPrivate()
     {
+        if(networkManager) delete networkManager;
     }
+
+    QString version;
 
     QWindow *window;
     bool fullscreen;
@@ -34,6 +39,8 @@ public:
     QString dragInfo;
 
     bool notificationsEnabled;
+
+    QNetworkAccessManager *networkManager;
 };
 
 ApplicationManager::ApplicationManager(QObject *parent) :
@@ -59,6 +66,12 @@ ApplicationManager *ApplicationManager::singleton()
 void ApplicationManager::declareQML()
 {
     qmlRegisterSingletonType<ApplicationManager>("BeatWhaleAPI", 1, 0, "ApplicationManager", qmlApplicationManagerSingleton);
+}
+
+QString ApplicationManager::version() const
+{
+    Q_D(const ApplicationManager);
+    return d->version;
 }
 
 void ApplicationManager::setWindow(QWindow *window)
@@ -109,10 +122,78 @@ QString ApplicationManager::dragInfo() const
     return d->dragInfo;
 }
 
+void ApplicationManager::setCursor(const ApplicationManager::CursorType &cursorType)
+{
+    switch(cursorType)
+    {
+    case CURSORTYPE_BUTTON:
+        QApplication::setOverrideCursor(Qt::PointingHandCursor);
+        break;
+    case CURSORTYPE_DRAG:
+        QApplication::setOverrideCursor(Qt::OpenHandCursor);
+        break;
+    case CURSORTYPE_DRAGGING:
+        QApplication::setOverrideCursor(Qt::ClosedHandCursor);
+        break;
+    case CURSORTYPE_FULLSCREEN:
+        QApplication::setOverrideCursor(Qt::BlankCursor);
+        break;
+    case CURSORTYPE_NORMAL:
+    default:
+        QApplication::restoreOverrideCursor();
+        break;
+    }
+}
+
 void ApplicationManager::setNotificationsEnabled(const bool &enabled)
 {
     Q_D(ApplicationManager);
     d->notificationsEnabled = enabled;
+}
+
+void ApplicationManager::checkForUpdates()
+{
+    Q_D(ApplicationManager);
+
+    QSettings settings("beatwhale_config.ini", QSettings::IniFormat);
+    QUrl versionUrl = settings.value("version_url").toString();
+
+    if(!d->networkManager) d->networkManager = new QNetworkAccessManager(this);
+    QNetworkReply *reply = d->networkManager->get(QNetworkRequest(versionUrl));
+    connect(reply, SIGNAL(finished()), SLOT(checkForUpdatesReply()));
+}
+
+void ApplicationManager::checkForUpdatesReply()
+{
+    Q_D(ApplicationManager);
+
+    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+    if(!reply) return;
+
+    disconnect(reply, SIGNAL(finished()), this, SLOT(checkForUpdatesReply()));
+
+    QByteArray replyBA = reply->readAll();
+
+    if(replyBA.indexOf("version") == -1) return;
+
+    replyBA = replyBA.right(replyBA.count() - replyBA.indexOf("version"));
+    int start = replyBA.indexOf(">") + 1;
+
+    QString newVersion = replyBA.mid(start, replyBA.indexOf("<") - start);
+
+    QStringList newVersionTypes = newVersion.split(".");
+    QStringList currentVersionTypes = d->version.split(".");
+
+    if(newVersionTypes.count() != 3) return;
+
+    for(int i = 0; i < 3; ++i)
+    {
+        if(newVersionTypes.at(i).toInt() > currentVersionTypes.at(i).toInt())
+        {
+            triggerNotification("New version available. Go to www.beatwhale.com to download.");
+            break;
+        }
+    }
 }
 
 void ApplicationManager::showNormal()
@@ -123,7 +204,7 @@ void ApplicationManager::showNormal()
     {
         if(d->maximized) d->window->showMaximized();
         else d->window->showNormal();
-        QApplication::restoreOverrideCursor();
+        setCursor(CURSORTYPE_NORMAL);
         d->fullscreen = false;
     }
 }
@@ -136,7 +217,7 @@ void ApplicationManager::showFullscreen()
     {
         d->maximized = d->window->visibility() == QWindow::Maximized;
         d->window->showFullScreen();
-        QApplication::setOverrideCursor(Qt::BlankCursor);
+        setCursor(CURSORTYPE_FULLSCREEN);
         d->fullscreen = true;
     }
 }

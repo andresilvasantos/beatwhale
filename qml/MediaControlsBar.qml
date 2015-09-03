@@ -72,56 +72,38 @@ Rectangle {
             rightMargin: 20
         }
 
-        Image {
+        BWMediaControlButton {
             id: buttonPrevious
             width: 30
             height: width
             source: "qrc:/images/forward"
-            sourceSize.width: width
-            sourceSize.height: width
             mirror: true
 
-            MouseArea {
-                anchors.fill: parent
-
-                onClicked: {
-                    previous()
-                }
+            onClicked: {
+                previous()
             }
         }
 
-        Image {
+        BWMediaControlButton {
             id: buttonPlay
             width: 30
             height: width
             source: playing ? "qrc:/images/pause" : "qrc:/images/playDark"
-            sourceSize.width: width
-            sourceSize.height: width
 
-            MouseArea {
-                anchors.fill: parent
-
-                onClicked: {
-                    if(playing) pause()
-                    else play()
-                }
+            onClicked: {
+                if(playing) pause()
+                else play()
             }
         }
 
-        Image {
+        BWMediaControlButton {
             id: buttonNext
             width: 30
             height: width
             source: "qrc:/images/forward"
-            sourceSize.width: width
-            sourceSize.height: width
 
-            MouseArea {
-                anchors.fill: parent
-
-                onClicked: {
-                    next()
-                }
+            onClicked: {
+                next()
             }
         }
 
@@ -204,54 +186,36 @@ Rectangle {
             width: 20
         }
 
-        Image {
+        BWMediaControlButton {
             id: buttonShuffle
             width: 30
             height: width
             source: shuffle ? "qrc:/images/shuffleToggled" : "qrc:/images/shuffle"
-            sourceSize.width: width
-            sourceSize.height: width
 
-            MouseArea {
-                anchors.fill: parent
-
-                onClicked: {
-                    shuffle = !shuffle
-                }
+            onClicked: {
+                shuffle = !shuffle
             }
         }
 
-        Image {
+        BWMediaControlButton {
             id: buttonRepeat
             width: 30
             height: width
             source: repeat ? "qrc:/images/repeatToggled" : "qrc:/images/repeat"
-            sourceSize.width: width
-            sourceSize.height: width
 
-            MouseArea {
-                anchors.fill: parent
-
-                onClicked: {
-                    repeat = !repeat
-                }
+            onClicked: {
+                repeat = !repeat
             }
         }
 
-        Image {
+        BWMediaControlButton {
             id: buttonOpenQueue
             width: 30
             height: width
             source: queueOpened ? "qrc:/images/openQueueToggled" : "qrc:/images/openQueue"
-            sourceSize.width: width
-            sourceSize.height: width
 
-            MouseArea {
-                anchors.fill: parent
-
-                onClicked: {
-                    queueOpened = !queueOpened
-                }
+            onClicked: {
+                queueOpened = !queueOpened
             }
         }
     }

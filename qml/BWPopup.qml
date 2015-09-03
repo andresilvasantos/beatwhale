@@ -1,4 +1,5 @@
 import QtQuick 2.0
+import BeatWhaleAPI 1.0
 
 Rectangle {
     color: "#333333"
@@ -53,6 +54,14 @@ Rectangle {
             rightMargin: 20
             bottom: parent.bottom
             bottomMargin: 10
+        }
+
+        onHovered: {
+            ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+        }
+
+        onHoveredOut: {
+            ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
         }
 
         onClicked: {

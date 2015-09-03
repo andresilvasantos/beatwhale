@@ -226,6 +226,17 @@ Rectangle {
                     }
                 }
 
+                Keys.onDeletePressed: {
+                    if(resultsGrid.videosSelected.length) {
+                        var videosToRemove = new Array
+                        for(var i = 0; i < resultsGrid.videosSelected.length; ++i) {
+                            videosToRemove.push(resultsGrid.model.get(resultsGrid.videosSelected[i]).id)
+                        }
+                        PlaylistsManager.removeFavorites(videosToRemove)
+                        resultsGrid.videosSelected = []
+                    }
+                }
+
                 MouseArea {
                     anchors.fill: parent
                     propagateComposedEvents: true

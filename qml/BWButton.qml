@@ -1,4 +1,5 @@
 import QtQuick 2.2
+import BeatWhaleAPI 1.0
 
 Rectangle {
     id: buttonRectangle
@@ -18,14 +19,16 @@ Rectangle {
         anchors.fill: parent
         hoverEnabled: true
 
-        onExited: {
-            if(!checkable || !checked) buttonRectangle.state = "default"
-            hoveredOut()
-        }
-
         onEntered: {
             if(!checked) buttonRectangle.state = "hovered"
+            ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
             hovered()
+        }
+
+        onExited: {
+            if(!checkable || !checked) buttonRectangle.state = "default"
+            ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+            hoveredOut()
         }
 
         onClicked: {

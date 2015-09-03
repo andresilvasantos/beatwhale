@@ -15,10 +15,22 @@ class ApplicationManager : public QObject
     Q_PROPERTY(qreal mouseX READ mouseX WRITE setMouseX NOTIFY mouseXChanged)
     Q_PROPERTY(qreal mouseY READ mouseY WRITE setMouseY NOTIFY mouseYChanged)
     Q_PROPERTY(qreal dragging READ dragging NOTIFY draggingChanged)
+    Q_ENUMS(CursorType)
 
 public:
+    enum CursorType
+    {
+        CURSORTYPE_NORMAL,
+        CURSORTYPE_BUTTON,
+        CURSORTYPE_DRAG,
+        CURSORTYPE_DRAGGING,
+        CURSORTYPE_FULLSCREEN
+    };
+
     static ApplicationManager* singleton();
     static void declareQML();
+
+    Q_INVOKABLE QString version() const;
 
     void setWindow(QWindow *window);
 
@@ -30,6 +42,8 @@ public:
     bool dragging() const;
     Q_INVOKABLE QString dragInfo() const;
 
+    Q_INVOKABLE void setCursor(const CursorType& cursorType);
+
     void setNotificationsEnabled(const bool& enabled);
 
 signals:
@@ -40,6 +54,8 @@ signals:
     void notification(QString message);
 
 public slots:
+    void checkForUpdates();
+
     Q_INVOKABLE void showNormal();
     Q_INVOKABLE void showFullscreen();
 
@@ -49,6 +65,7 @@ public slots:
     Q_INVOKABLE void triggerNotification(const QString& message);
 
 private slots:
+    void checkForUpdatesReply();
 
 private:
     explicit ApplicationManager(QObject *parent = 0);

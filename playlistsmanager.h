@@ -19,8 +19,9 @@ public:
     void setDocument(const QJsonDocument& document);
 
     Q_INVOKABLE bool isFavorited(const QString &id) const;
-    Q_INVOKABLE void addToFavorites(const QString& id, const QString& title, const QString& subTitle, const QString& thumbnail, const QString &duration, QString timestamp = QString());
-    Q_INVOKABLE bool removeFromFavorites(const QString& id);
+    Q_INVOKABLE void addFavorite(const QString& id, const QString& title, const QString& subTitle, const QString& thumbnail, const QString &duration, QString timestamp = QString());
+    Q_INVOKABLE bool removeFavorite(const QString& id);
+    Q_INVOKABLE void removeFavorites(const QStringList& ids);
     Q_INVOKABLE QList<QObject*> favorites() const;
 
     Q_INVOKABLE Playlist* createPlaylist();

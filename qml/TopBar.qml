@@ -72,8 +72,8 @@ Rectangle {
     }
 
     BWButton {
-        id: buttonSearchDuration
-        width: buttonSearchDurationText.width + 20
+        id: buttonOrderFilter
+        width: buttonOrderFilterText.width + 20
         height: 25
         color: "#ebeff1"
         hoverColor: "#5000addc"
@@ -86,19 +86,65 @@ Rectangle {
             verticalCenter: parent.verticalCenter
         }
 
-        property int searchDuration: -1
+        property int orderFilter: -1
 
         onClicked: {
-            ++searchDuration
-            if(searchDuration > 2) searchDuration = -1
+            ++orderFilter
+            if(orderFilter > 2) orderFilter = -1
 
-            YoutubeAPI.setVideoDurationSearch(searchDuration)
+            YoutubeAPI.setOrderFilter(orderFilter + 1)
         }
 
         Text {
-            id: buttonSearchDurationText
+            id: buttonOrderFilterText
             text: {
-                switch(buttonSearchDuration.searchDuration) {
+                switch(buttonOrderFilter.orderFilter) {
+                case 0:
+                    return "Date"
+                case 1:
+                    return "Rating"
+                case 2:
+                    return "View Count"
+                default:
+                    return "Relevance"
+                }
+            }
+            color: "#aaaaaa"
+            font.pixelSize: 13
+            font.family: "Open Sans"
+
+            anchors.centerIn: parent
+        }
+    }
+
+    BWButton {
+        id: buttonDurationFilter
+        width: buttonDurationFilterText.width + 20
+        height: 25
+        color: "#ebeff1"
+        hoverColor: "#5000addc"
+        selectedColor: "#5000addc"
+        radius: 5
+
+        anchors {
+            left: buttonOrderFilter.right
+            leftMargin: 20
+            verticalCenter: parent.verticalCenter
+        }
+
+        property int durationFilter: -1
+
+        onClicked: {
+            ++durationFilter
+            if(durationFilter > 2) durationFilter = -1
+
+            YoutubeAPI.setDurationFilter(durationFilter + 1)
+        }
+
+        Text {
+            id: buttonDurationFilterText
+            text: {
+                switch(buttonDurationFilter.durationFilter) {
                 case 0:
                     return "Short"
                 case 1:
@@ -172,16 +218,19 @@ Rectangle {
 
             onEntered: {
                 userButton.hovered = true
+                ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
             }
 
             onExited: {
                 userButton.hovered = false
+                ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
             }
 
             onClicked: {
-                userButton.selected = !userButton.selected
-
-                if(userButton.selected) settingsRequested()
+                if(!userButton.selected) {
+                    userButton.selected = true
+                    settingsRequested()
+                }
             }
         }
     }

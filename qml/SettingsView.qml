@@ -212,7 +212,7 @@ Rectangle {
                         else if(focus && text == "password" && echoMode == TextInput.Normal)
                         {
                             text = ""
-                            font.family = "Arial Narrow"
+                            font.family = "Arial"
                             echoMode = TextInput.Password
                             opacity = 1
                         }
@@ -283,7 +283,7 @@ Rectangle {
                         else if(focus && text == "retype password" && echoMode == TextInput.Normal)
                         {
                             text = ""
-                            font.family = "Arial Narrow"
+                            font.family = "Arial"
                             echoMode = TextInput.Password
                             opacity = 1
                         }

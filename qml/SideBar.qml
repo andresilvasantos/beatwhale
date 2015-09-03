@@ -16,6 +16,7 @@ Rectangle {
     property bool currentVideoFavorited
     property bool videoMaximized: false
     property bool userSettings: false
+    property bool thumbnailHovered: false
 
     signal playlistCreated(string id)
     signal fullscreenVideoRequested
@@ -29,6 +30,21 @@ Rectangle {
 
     onUserSettingsChanged: {
         if(userSettings) minimizeVideo()
+    }
+
+    onThumbnailHoveredChanged: {
+        if(thumbnailHovered) {
+            if(!currentVideoID) return
+
+            buttonShowVideoLarge.opacity = 1
+            buttonShowVideoFullscreen.opacity = 1
+            favoriteVideoImage.opacity = currentVideoFavorited ? .7 : .3
+        }
+        else {
+            buttonShowVideoLarge.opacity = 0
+            buttonShowVideoFullscreen.opacity = 0
+            favoriteVideoImage.opacity = 0
+        }
     }
 
     function maximizeVideo() {
@@ -183,7 +199,8 @@ Rectangle {
                 id: separatorText
                 text: caption
                 color: "#61666a"
-                font.pixelSize: 11
+                font.pixelSize: 10
+                font.family: "Arial"
                 horizontalAlignment: Text.AlignLeft
                 font.capitalization: Font.AllUppercase
                 font.letterSpacing: 2
@@ -229,8 +246,31 @@ Rectangle {
                     NumberAnimation { duration: 200; easing.type: Easing.OutSine }
                 }
 
+                Behavior on scale {
+                    NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+                }
+
                 MouseArea {
                     anchors.fill: parent
+                    hoverEnabled: true
+
+                    onEntered: {
+                        ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                        buttonAdd.opacity = 1
+                    }
+
+                    onExited: {
+                        ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                        buttonAdd.opacity = 0
+                    }
+
+                    onPressed: {
+                        parent.scale = 1.1
+                    }
+
+                    onReleased: {
+                        parent.scale = 1
+                    }
 
                     onClicked: {
                         var playlist = PlaylistsManager.createPlaylist()
@@ -352,22 +392,56 @@ Rectangle {
             bottom: videoTitleHolder.top
         }
 
-        MouseArea {
+        onVisibleChanged: {
+            buttonShowVideoLarge.opacity = 0
+            buttonShowVideoFullscreen.opacity = 0
+            favoriteVideoImage.opacity = 0
+        }
+
+        Item {
             anchors.fill: parent
-            hoverEnabled: true
 
-            onEntered: {
-                if(!currentVideoID) return
+            property bool dragActive: dragArea.drag.active
+            Drag.dragType: Drag.Automatic
 
-                buttonShowVideoLarge.opacity = 1
-                buttonShowVideoFullscreen.opacity = 1
-                favoriteVideoImage.opacity = currentVideoFavorited ? .7 : .3
+            onDragActiveChanged: {
+                if(dragActive && currentVideoID) {
+                    Drag.start();
+
+                    var dragInfo = ""
+                    dragInfo += currentVideoID
+                    dragInfo += "#!#!"
+                    dragInfo += currentTitle
+                    dragInfo += "#!#!"
+                    dragInfo += currentSubTitle
+                    dragInfo += "#!#!"
+                    dragInfo += currentThumbnail
+                    dragInfo += "#!#!"
+                    dragInfo += currentDuration
+                    dragInfo += "##!##!"
+
+                    dragVideoStarted(dragInfo)
+                }
+                else {
+                    Drag.drop();
+                    dragVideoFinished()
+                }
             }
 
-            onExited: {
-                buttonShowVideoLarge.opacity = 0
-                buttonShowVideoFullscreen.opacity = 0
-                favoriteVideoImage.opacity = 0
+            MouseArea {
+                id: dragArea
+                anchors.fill: parent
+                drag.target: parent
+                propagateComposedEvents: true
+                hoverEnabled: true
+
+                onEntered: {
+                    thumbnailHovered = true
+                }
+
+                onExited: {
+                    thumbnailHovered = false
+                }
             }
         }
 
@@ -376,25 +450,43 @@ Rectangle {
             width: 25
             height: 25
             //color: "white"
-            source: "qrc:/images/zoomIn"
+            source: "qrc:/images/enlarge"
             opacity: 0
-
-            sourceSize.width: 30
-            sourceSize.height: 30
+            sourceSize.width: width
+            sourceSize.height: height
+            smooth: false
 
             anchors {
                 right: buttonShowVideoFullscreen.left
                 rightMargin: 5
                 top: parent.top
-                topMargin: 5
+                topMargin: 4
             }
 
             Behavior on opacity {
-                NumberAnimation { property: "opacity"; duration: 200; easing.type: Easing.OutSine }
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+            }
+
+            Behavior on scale {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
             }
 
             MouseArea {
                 anchors.fill: parent
+                hoverEnabled: true
+
+                onEntered: {
+                    thumbnailHovered = true
+
+                    parent.opacity = 1
+                    parent.scale = 1.1
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                }
+
+                onExited: {
+                    parent.scale = 1
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                }
 
                 onClicked: {
                     maximizeVideo()
@@ -406,12 +498,11 @@ Rectangle {
             id: buttonShowVideoFullscreen
             width: 25
             height: 25
-            //color: "white"
             source: "qrc:/images/fullscreen"
             opacity: 0
-
-            sourceSize.width: 30
-            sourceSize.height: 30
+            sourceSize.width: width
+            sourceSize.height: height
+            smooth: false
 
             anchors {
                 right: parent.right
@@ -421,11 +512,29 @@ Rectangle {
             }
 
             Behavior on opacity {
-                NumberAnimation { property: "opacity"; duration: 200; easing.type: Easing.OutSine }
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+            }
+
+            Behavior on scale {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
             }
 
             MouseArea {
                 anchors.fill: parent
+                hoverEnabled: true
+
+                onEntered: {
+                    thumbnailHovered = true
+
+                    parent.opacity = 1
+                    parent.scale = 1.1
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                }
+
+                onExited: {
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    parent.scale = 1
+                }
 
                 onClicked: {
                     video.visible = false
@@ -439,9 +548,11 @@ Rectangle {
             width: 30
             height: width
             source: currentVideoFavorited ? "qrc:/images/heartChecked" : "qrc:/images/heartUnchecked"
+            sourceSize.width: width
+            sourceSize.height: height
             opacity: 0
             asynchronous: true
-            smooth: true
+            smooth: false
 
             anchors {
                 right: parent.right
@@ -451,7 +562,11 @@ Rectangle {
             }
 
             Behavior on opacity {
-                NumberAnimation { property: "opacity"; duration: 200; easing.type: Easing.OutSine }
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+            }
+
+            Behavior on scale {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
             }
 
             MouseArea {
@@ -459,15 +574,19 @@ Rectangle {
                 hoverEnabled: true
 
                 onEntered: {
+                    thumbnailHovered = true
+
                     if(!currentVideoID) return
 
                     favoriteVideoImage.opacity = .7
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
                 }
 
                 onExited: {
                     if(!currentVideoID) return
 
                     if(!currentVideoFavorited) favoriteVideoImage.opacity = .3
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
                 }
 
                 onClicked: {
@@ -475,48 +594,18 @@ Rectangle {
 
                     currentVideoFavorited = !currentVideoFavorited
 
-                    if(currentVideoFavorited) PlaylistsManager.addToFavorites(currentVideoID, currentTitle, currentSubTitle, currentThumbnail, currentDuration)
-                    else PlaylistsManager.removeFromFavorites(currentVideoID)
+                    if(currentVideoFavorited) PlaylistsManager.addFavorite(currentVideoID, currentTitle, currentSubTitle, currentThumbnail, currentDuration)
+                    else PlaylistsManager.removeFavorite(currentVideoID)
+                }
+
+                onPressed: {
+                    parent.scale = 1.1
+                }
+
+                onReleased: {
+                    parent.scale = 1
                 }
             }
-        }
-    }
-
-    Item {
-        anchors.fill: video
-
-        property bool dragActive: dragArea.drag.active
-        Drag.dragType: Drag.Automatic
-
-        onDragActiveChanged: {
-            if(dragActive && currentVideoID) {
-                Drag.start();
-
-                var dragInfo = ""
-                dragInfo += currentVideoID
-                dragInfo += "#!#!"
-                dragInfo += currentTitle
-                dragInfo += "#!#!"
-                dragInfo += currentSubTitle
-                dragInfo += "#!#!"
-                dragInfo += currentThumbnail
-                dragInfo += "#!#!"
-                dragInfo += currentDuration
-                dragInfo += "##!##!"
-
-                dragVideoStarted(dragInfo)
-            }
-            else {
-                Drag.drop();
-                dragVideoFinished()
-            }
-        }
-
-        MouseArea {
-            id: dragArea
-            anchors.fill: parent
-            drag.target: parent
-            propagateComposedEvents: true
         }
     }
 
