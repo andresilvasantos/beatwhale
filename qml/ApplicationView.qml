@@ -668,6 +668,7 @@ Rectangle {
             listsViewLoader.visible = false
             searchViewLoader.item.newSearch(search)
             topBar.untoggleUserButton()
+            sideBar.searchRequested()
         }
 
         onSettingsRequested: {

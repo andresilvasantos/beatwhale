@@ -10,7 +10,7 @@ ApplicationWindow {
     height: 600
     minimumWidth: 800
     minimumHeight: 600
-    color: "#111111"
+    color: "#cccccc"
 
     Loader{
         id: loaderApplication
@@ -32,7 +32,7 @@ ApplicationWindow {
         rotation: 45
         color: "#cccccc"
         opacity: .5
-        visible: !ApplicationManager.maximized && !ApplicationManager.fullscreen
+        visible: !ApplicationManager.maximized && !ApplicationManager.fullscreen && ApplicationManager.windowControlButtonsEnabled
 
         anchors {
             right: parent.right
@@ -79,7 +79,7 @@ ApplicationWindow {
         id: windowControls
         height: 20
         spacing: 10
-        visible: !ApplicationManager.fullscreen
+        visible: !ApplicationManager.fullscreen && ApplicationManager.windowControlButtonsEnabled
 
         anchors {
             right: parent.right

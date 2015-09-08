@@ -15,7 +15,8 @@ bool MouseEventFilter::eventFilter(QObject *obj, QEvent *event)
             ApplicationManager::singleton()->setMouseX(mouseEvent->pos().x());
             ApplicationManager::singleton()->setMouseY(mouseEvent->pos().y());
 
-            if(mouseEvent->buttons() && Qt::LeftButton && ApplicationManager::singleton()->grabbingWindowMoveHandle())
+            if(mouseEvent->buttons() && Qt::LeftButton && ApplicationManager::singleton()->grabbingWindowMoveHandle() &&
+                    ApplicationManager::singleton()->windowControlButtonsEnabled())
             {
                 QPoint diffPosition = mouseEvent->pos() - mousePos.toPoint();
                 QPoint newPosition = ApplicationManager::singleton()->window()->position() + diffPosition;
@@ -32,7 +33,8 @@ bool MouseEventFilter::eventFilter(QObject *obj, QEvent *event)
                     ApplicationManager::singleton()->window()->setPosition(newPosition);
                 }
             }
-            else if(mouseEvent->buttons() && Qt::LeftButton && ApplicationManager::singleton()->grabbingWindowResizeHandle())
+            else if(mouseEvent->buttons() && Qt::LeftButton && ApplicationManager::singleton()->grabbingWindowResizeHandle() &&
+                    ApplicationManager::singleton()->windowControlButtonsEnabled())
             {
                 QPoint diffPosition = mouseEvent->pos() - mousePos.toPoint();
                 mousePos = mouseEvent->pos();

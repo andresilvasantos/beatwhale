@@ -287,6 +287,8 @@ Rectangle {
                 }
 
                 onClicked: {
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+
                     favorited = !favorited
 
                     if(favorited) PlaylistsManager.addFavorite(videoID, videoTitle, videoSubTitle, videoThumbnail, videoDuration)

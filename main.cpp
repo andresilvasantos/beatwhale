@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
 
     //logFileName = "log.txt";
-//    qInstallMessageHandler(myMessageHandler);
+    //qInstallMessageHandler(myMessageHandler);
 
 #ifdef Q_OS_WIN
     //qputenv("VLC_PLUGIN_PATH", QString(QCoreApplication::applicationDirPath() + "/vlc_plugins/"));
@@ -85,7 +85,12 @@ int main(int argc, char *argv[])
     MouseEventFilter mouseFilter;
     window->installEventFilter(&closeFilter);
     window->installEventFilter(&mouseFilter);
+
+#ifdef Q_OS_WIN
     window->setFlags(window->flags() | Qt::FramelessWindowHint);
+#else
+    ApplicationManager::singleton()->setWindowControlButtonsEnabled(false);
+#endif
 
     ApplicationManager::singleton()->setWindow(window);
 

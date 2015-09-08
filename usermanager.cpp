@@ -19,6 +19,7 @@ class UserManagerPrivate
 public:
     UserManagerPrivate() :
         networkManager(0),
+        queueFile(0),
         firstTime(true),
         waitingForChanges(false),
         documentReadyForUpload(false),
@@ -29,6 +30,12 @@ public:
     virtual ~UserManagerPrivate()
     {
         if(networkManager) delete networkManager;
+
+        if(queueFile)
+        {
+            queueFile->close();
+            delete queueFile;
+        }
     }
 
     QNetworkAccessManager *networkManager;
@@ -41,6 +48,7 @@ public:
     QSettings localSettings;
 
     QString currentRevision;
+    QString currentSettingsRevision;
     QJsonDocument videosDocument;
     QJsonDocument documentToUpload;
 
@@ -226,7 +234,7 @@ void UserManager::deleteAccount()
 
     if(!d->networkManager) d->networkManager = new QNetworkAccessManager(this);
 
-    QUrl url(ApplicationManager::singleton()->beatwhaleAPIUrl() + "deleteaccount.php?email=" + d->email.toLower() + "&username=" + d->username);
+    QUrl url(ApplicationManager::singleton()->beatwhaleAPIUrl() + "deleteaccount.php?email=" + d->email.toLower() + "&username=" + d->username + "&rev=" + d->currentSettingsRevision);
     QNetworkReply *reply = d->networkManager->get(QNetworkRequest(url));
     connect(reply, SIGNAL(finished()), SLOT(deleteAccountReply()));
 }
@@ -337,7 +345,7 @@ void UserManager::changePassword(const QString &newPassword)
     QByteArray salt = QByteArray(randomHex.toStdString().c_str()).toHex();
     QString hash = QString(QCryptographicHash::hash((d->newPassword.toStdString().c_str() + salt),QCryptographicHash::Sha1).toHex());
 
-    QUrl url(ApplicationManager::singleton()->beatwhaleAPIUrl() + "changepassword.php?username=" + d->username + "&hash=" + hash + "&salt=" + salt);
+    QUrl url(ApplicationManager::singleton()->beatwhaleAPIUrl() + "changepassword.php?username=" + d->username + "&hash=" + hash + "&salt=" + salt + "&rev=" + d->currentSettingsRevision);
     QNetworkReply *reply = d->networkManager->get(QNetworkRequest(url));
     connect(reply, SIGNAL(finished()), SLOT(changePasswordReply()));
 }
@@ -453,6 +461,7 @@ void UserManager::logout()
 
     d->queueFile->close();
     delete d->queueFile;
+    d->queueFile = 0;
 
     d->firstTime = true;
 }
@@ -708,6 +717,7 @@ void UserManager::documentSettingsRetrieved(const bool &success, const QString &
 
     if(success)
     {
+        d->currentSettingsRevision = document.object().value("_rev").toString();
         d->email = document.object().value("email").toString();
     }
 }

@@ -52,6 +52,10 @@ Rectangle {
         }
     }
 
+    function searchRequested() {
+        sidebarList.selectedIndex = 1
+    }
+
     function maximizeVideo() {
         video.visible = false
         videoMaximized = true

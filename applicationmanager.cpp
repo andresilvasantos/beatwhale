@@ -16,6 +16,7 @@ public:
         version("0.7.3"),
         newVersionAvailable(false),
         window(0),
+        windowControlButtonsEnabled(true),
         maximized(false),
         fullscreen(false),
         maximizedToFullscreen(false),
@@ -42,6 +43,7 @@ public:
     bool newVersionAvailable;
 
     QWindow *window;
+    bool windowControlButtonsEnabled;
     bool maximized;
     bool fullscreen;
     bool maximizedToFullscreen;
@@ -120,7 +122,7 @@ void ApplicationManager::setWindow(QWindow *window)
             int width = localSettings.value("width", 800).toInt();
             int height = localSettings.value("height", 600).toInt();
             if(width < 800) width = 800;
-            if(height < 800) height = 800;
+            if(height < 600) height = 600;
             d->window->setGeometry(localSettings.value("x", 0).toInt(), localSettings.value("y", 0).toInt(), width, height);
             showNormal();
         }
@@ -129,6 +131,21 @@ void ApplicationManager::setWindow(QWindow *window)
     {
         d->window->showNormal();
     }
+}
+
+bool ApplicationManager::windowControlButtonsEnabled() const
+{
+    Q_D(const ApplicationManager);
+    return d->windowControlButtonsEnabled;
+}
+
+void ApplicationManager::setWindowControlButtonsEnabled(const bool &enabled)
+{
+    Q_D(ApplicationManager);
+    if(d->windowControlButtonsEnabled == enabled) return;
+
+    d->windowControlButtonsEnabled = enabled;
+    emit windowControlButtonsEnabledChanged(d->windowControlButtonsEnabled);
 }
 
 bool ApplicationManager::maximized() const
@@ -301,7 +318,7 @@ void ApplicationManager::checkForUpdates()
 void ApplicationManager::quit()
 {
     saveWindowData();
-    exit(0);
+    QApplication::instance()->quit();
 }
 
 void ApplicationManager::saveWindowData()

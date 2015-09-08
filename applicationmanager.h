@@ -15,6 +15,7 @@ class ApplicationManager : public QObject
     Q_PROPERTY(qreal mouseX READ mouseX WRITE setMouseX NOTIFY mouseXChanged)
     Q_PROPERTY(qreal mouseY READ mouseY WRITE setMouseY NOTIFY mouseYChanged)
     Q_PROPERTY(qreal dragging READ dragging NOTIFY draggingChanged)
+    Q_PROPERTY(bool windowControlButtonsEnabled READ windowControlButtonsEnabled NOTIFY windowControlButtonsEnabledChanged)
     Q_PROPERTY(bool maximized READ maximized NOTIFY maximizedChanged)
     Q_PROPERTY(bool fullscreen READ fullscreen NOTIFY fullscreenChanged)
     Q_ENUMS(CursorType)
@@ -39,6 +40,9 @@ public:
     QWindow* window() const;
     void setWindow(QWindow *window);
 
+    bool windowControlButtonsEnabled() const;
+    void setWindowControlButtonsEnabled(const bool& enabled);
+
     Q_INVOKABLE bool maximized() const;
     Q_INVOKABLE bool fullscreen() const;
 
@@ -61,6 +65,7 @@ public:
     void setNotificationsEnabled(const bool& enabled);
 
 signals:
+    void windowControlButtonsEnabledChanged(bool enabled);
     void maximizedChanged(bool maximized);
     void fullscreenChanged(bool fullscreen);
 

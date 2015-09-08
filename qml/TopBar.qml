@@ -240,7 +240,7 @@ Rectangle {
 
         anchors {
             right: parent.right
-            rightMargin: 120
+            rightMargin: ApplicationManager.windowControlButtonsEnabled ? 120 : 20
             verticalCenter: parent.verticalCenter
         }
 
