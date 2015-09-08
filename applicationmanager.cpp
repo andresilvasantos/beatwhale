@@ -1,4 +1,7 @@
 #include "applicationmanager.h"
+#include "youtubeapimanager.h"
+
+#include <databasemanager.h>
 
 #include <QApplication>
 #include <QWindow>
@@ -10,27 +13,40 @@ class ApplicationManagerPrivate
 {
 public:
     ApplicationManagerPrivate() :
-        version("0.7.2"),
+        version("0.7.3"),
+        newVersionAvailable(false),
         window(0),
-        fullscreen(false),
         maximized(false),
+        fullscreen(false),
+        maximizedToFullscreen(false),
+        grabbingWindowMoveHandle(false),
+        grabbingWindowResizeHandle(false),
         mouseX(0),
         mouseY(0),
         dragging(false),
         notificationsEnabled(true),
         networkManager(0)
-    {}
+    {
+        QSettings settings("beatwhale_config.ini", QSettings::IniFormat);
+        beatwhaleAPIUrl = settings.value("beatwhale_api_url").toString();
+    }
 
     virtual ~ApplicationManagerPrivate()
     {
         if(networkManager) delete networkManager;
     }
 
+    QString beatwhaleAPIUrl;
+
     QString version;
+    bool newVersionAvailable;
 
     QWindow *window;
-    bool fullscreen;
     bool maximized;
+    bool fullscreen;
+    bool maximizedToFullscreen;
+    bool grabbingWindowMoveHandle;
+    bool grabbingWindowResizeHandle;
 
     int mouseX;
     int mouseY;
@@ -68,16 +84,87 @@ void ApplicationManager::declareQML()
     qmlRegisterSingletonType<ApplicationManager>("BeatWhaleAPI", 1, 0, "ApplicationManager", qmlApplicationManagerSingleton);
 }
 
+QString ApplicationManager::beatwhaleAPIUrl() const
+{
+    Q_D(const ApplicationManager);
+    return d->beatwhaleAPIUrl;
+}
+
 QString ApplicationManager::version() const
 {
     Q_D(const ApplicationManager);
     return d->version;
 }
 
+QWindow *ApplicationManager::window() const
+{
+    Q_D(const ApplicationManager);
+    return d->window;
+}
+
 void ApplicationManager::setWindow(QWindow *window)
 {
     Q_D(ApplicationManager);
     d->window = window;
+
+    QSettings localSettings(QSettings::IniFormat, QSettings::UserScope, "BeatWhale", "beatwhale_app");
+    if(localSettings.childGroups().contains("window_geometry"))
+    {
+        localSettings.beginGroup("window_geometry");
+        if(localSettings.value("maximized", false).toBool())
+        {
+            showMaximized();
+        }
+        else
+        {
+            int width = localSettings.value("width", 800).toInt();
+            int height = localSettings.value("height", 600).toInt();
+            if(width < 800) width = 800;
+            if(height < 800) height = 800;
+            d->window->setGeometry(localSettings.value("x", 0).toInt(), localSettings.value("y", 0).toInt(), width, height);
+            showNormal();
+        }
+    }
+    else
+    {
+        d->window->showNormal();
+    }
+}
+
+bool ApplicationManager::maximized() const
+{
+    Q_D(const ApplicationManager);
+    return d->maximized;
+}
+
+bool ApplicationManager::fullscreen() const
+{
+    Q_D(const ApplicationManager);
+    return d->fullscreen;
+}
+
+bool ApplicationManager::grabbingWindowMoveHandle() const
+{
+    Q_D(const ApplicationManager);
+    return d->grabbingWindowMoveHandle;
+}
+
+void ApplicationManager::setGrabbingWindowMoveHandle(bool grabbing)
+{
+    Q_D(ApplicationManager);
+    d->grabbingWindowMoveHandle = grabbing;
+}
+
+bool ApplicationManager::grabbingWindowResizeHandle() const
+{
+    Q_D(const ApplicationManager);
+    return d->grabbingWindowResizeHandle;
+}
+
+void ApplicationManager::setGrabbingWindowResizeHandle(bool grabbing)
+{
+    Q_D(ApplicationManager);
+    d->grabbingWindowResizeHandle = grabbing;
 }
 
 int ApplicationManager::mouseX() const
@@ -151,36 +238,44 @@ void ApplicationManager::setNotificationsEnabled(const bool &enabled)
     d->notificationsEnabled = enabled;
 }
 
-void ApplicationManager::checkForUpdates()
+void ApplicationManager::loadConfiguration()
 {
     Q_D(ApplicationManager);
 
-    QSettings settings("beatwhale_config.ini", QSettings::IniFormat);
-    QUrl versionUrl = settings.value("version_url").toString();
-
     if(!d->networkManager) d->networkManager = new QNetworkAccessManager(this);
-    QNetworkReply *reply = d->networkManager->get(QNetworkRequest(versionUrl));
-    connect(reply, SIGNAL(finished()), SLOT(checkForUpdatesReply()));
+
+    QUrl url(ApplicationManager::singleton()->beatwhaleAPIUrl() + "configuration.php");
+    QNetworkReply *reply = d->networkManager->get(QNetworkRequest(url));
+    connect(reply, SIGNAL(finished()), SLOT(loadConfigurationReply()));
 }
 
-void ApplicationManager::checkForUpdatesReply()
+void ApplicationManager::loadConfigurationReply()
 {
     Q_D(ApplicationManager);
 
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
     if(!reply) return;
 
-    disconnect(reply, SIGNAL(finished()), this, SLOT(checkForUpdatesReply()));
+    const QByteArray replyBA = reply->readAll();
+    QJsonDocument document = QJsonDocument::fromJson(replyBA);
+    QJsonObject obj = document.object();
 
-    QByteArray replyBA = reply->readAll();
+    delete reply;
 
-    if(replyBA.indexOf("version") == -1) return;
+    QString dbHost = obj.value("db_host").toString();
+    QString youtubeAPIKey = obj.value("youtube_api_key").toString();
+    QString newVersion = obj.value("beatwhale_version").toString();
 
-    replyBA = replyBA.right(replyBA.count() - replyBA.indexOf("version"));
-    int start = replyBA.indexOf(">") + 1;
+    if(dbHost.isEmpty() || youtubeAPIKey.isEmpty() || newVersion.isEmpty())
+    {
+        QTimer::singleShot(2000, this, SLOT(loadConfiguration()));
+        return;
+    }
 
-    QString newVersion = replyBA.mid(start, replyBA.indexOf("<") - start);
+    DatabaseManager::singleton()->setBaseUrl(dbHost);
+    YoutubeAPIManager::singleton()->setAPIKey(youtubeAPIKey);
 
+    //Check if there is a new version available
     QStringList newVersionTypes = newVersion.split(".");
     QStringList currentVersionTypes = d->version.split(".");
 
@@ -190,35 +285,93 @@ void ApplicationManager::checkForUpdatesReply()
     {
         if(newVersionTypes.at(i).toInt() > currentVersionTypes.at(i).toInt())
         {
-            triggerNotification("New version available. Go to www.beatwhale.com to download.");
+            d->newVersionAvailable = true;
             break;
         }
     }
 }
 
-void ApplicationManager::showNormal()
+void ApplicationManager::checkForUpdates()
 {
     Q_D(ApplicationManager);
 
-    if(d->fullscreen)
-    {
-        if(d->maximized) d->window->showMaximized();
-        else d->window->showNormal();
-        setCursor(CURSORTYPE_NORMAL);
-        d->fullscreen = false;
-    }
+    if(d->newVersionAvailable) triggerNotification("New version available. Go to www.beatwhale.com to download.");
 }
 
-void ApplicationManager::showFullscreen()
+void ApplicationManager::quit()
+{
+    saveWindowData();
+    exit(0);
+}
+
+void ApplicationManager::saveWindowData()
 {
     Q_D(ApplicationManager);
 
-    if(!d->fullscreen)
+    QSettings localSettings(QSettings::IniFormat, QSettings::UserScope, "BeatWhale", "beatwhale_app");
+    localSettings.beginGroup("window_geometry");
+    localSettings.setValue("x", d->window->x());
+    localSettings.setValue("y", d->window->y());
+    localSettings.setValue("width", d->window->width());
+    localSettings.setValue("height", d->window->height());
+    localSettings.setValue("maximized", d->window->visibility() == QWindow::Maximized);
+    localSettings.endGroup();
+}
+
+void ApplicationManager::showMinimized()
+{
+    Q_D(ApplicationManager);
+    d->window->showMinimized();
+}
+
+bool ApplicationManager::showNormal()
+{
+    Q_D(ApplicationManager);
+    if(d->window->visibility() != QWindow::Windowed)
     {
-        d->maximized = d->window->visibility() == QWindow::Maximized;
+        d->window->showNormal();
+        d->maximized = false;
+        maximizedChanged(d->maximized);
+        return true;
+    }
+
+    return false;
+}
+
+void ApplicationManager::showMaximized()
+{
+    Q_D(ApplicationManager);
+
+    if(d->window->visibility() == QWindow::Maximized) d->window->showNormal();
+    else d->window->showMaximized();
+
+    d->maximized = d->window->visibility() == QWindow::Maximized;
+    maximizedChanged(d->maximized);
+}
+
+void ApplicationManager::showFullscreen(bool fullscreen)
+{
+    Q_D(ApplicationManager);
+
+    if(fullscreen && d->window->visibility() != QWindow::FullScreen)
+    {
+        d->maximizedToFullscreen = d->window->visibility() == QWindow::Maximized;
         d->window->showFullScreen();
         setCursor(CURSORTYPE_FULLSCREEN);
-        d->fullscreen = true;
+        d->fullscreen = fullscreen;
+
+        fullscreenChanged(d->fullscreen);
+    }
+    else if(!fullscreen && d->window->visibility() == QWindow::FullScreen)
+    {
+        if(d->maximizedToFullscreen) d->window->showMaximized();
+        else d->window->showNormal();
+        setCursor(CURSORTYPE_NORMAL);
+        d->fullscreen = fullscreen;
+
+        fullscreenChanged(d->fullscreen);
+        d->maximized = d->window->visibility() == QWindow::Maximized;
+        maximizedChanged(d->maximized);
     }
 }
 

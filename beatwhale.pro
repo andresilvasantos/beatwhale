@@ -16,14 +16,12 @@ LIBS += -L$${DESTDIR} -ltop_utils
 LIBS += -L$${DESTDIR} -ltop_databasemanager
 LIBS += -L$${DESTDIR} -ltop_components
 LIBS += -L$${DESTDIR} -ltop_vlc
-LIBS += -L$${DESTDIR} -ltop_social
 
 win32 {
     PRE_TARGETDEPS += $${DESTDIR}/top_utils.lib
     PRE_TARGETDEPS += $${DESTDIR}/top_databasemanager.lib
     PRE_TARGETDEPS += $${DESTDIR}/top_components.lib
     PRE_TARGETDEPS += $${DESTDIR}/top_vlc.lib
-    PRE_TARGETDEPS += $${DESTDIR}/top_social.lib
 }
 
 unix {
@@ -31,17 +29,15 @@ unix {
     PRE_TARGETDEPS += $${DESTDIR}/libtop_databasemanager.a
     PRE_TARGETDEPS += $${DESTDIR}/libtop_components.a
     PRE_TARGETDEPS += $${DESTDIR}/libtop_vlc.a
-    PRE_TARGETDEPS += $${DESTDIR}/libtop_social.a
 }
 
 INCLUDEPATH += ../../TOP/TOP-Utils
 INCLUDEPATH += ../../TOP/TOP-DatabaseManager
 INCLUDEPATH += ../../TOP/TOP-Components
 INCLUDEPATH += ../../TOP/TOP-VLC
-INCLUDEPATH += ../../TOP/TOP-Social
 
 win32 {
-    VERSION = 0.7.2.0
+    VERSION = 0.7.3.0
     RC_ICONS="icon/icon.ico"
     QMAKE_TARGET_COMPANY = "BeatWhale Inc"
     QMAKE_TARGET_PRODUCT = "BeatWhale"

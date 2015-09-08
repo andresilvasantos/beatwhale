@@ -19,11 +19,9 @@ public:
         networkManager(0),
         youtubeUrlProcess(0),
         youtubeDurationProcess(0),
-        orderFilter(YoutubeAPIManager::ORDER_RELEVANCE),
+        orderFilter(YoutubeAPIManager::ORDER_VIEWCOUNT),
         durationFilter(YoutubeAPIManager::DURATION_ANY)
     {
-        QSettings settings("beatwhale_config.ini", QSettings::IniFormat);
-        youtubeAPIKey = settings.value("youtube_key").toString();
     }
 
     virtual ~YoutubeAPIManagerPrivate()
@@ -102,6 +100,12 @@ void YoutubeAPIManager::declareQML()
     qmlRegisterSingletonType<YoutubeAPIManager>("BeatWhaleAPI", 1, 0, "YoutubeAPI", qmlYoutubeAPIManagerSingleton);
 }
 
+void YoutubeAPIManager::setAPIKey(const QString &key)
+{
+    Q_D(YoutubeAPIManager);
+    d->youtubeAPIKey = key;
+}
+
 void YoutubeAPIManager::shutdown()
 {
     delete d_ptr;
@@ -133,6 +137,9 @@ void YoutubeAPIManager::search(const QString &search)
     QString orderBy;
     switch(d->orderFilter)
     {
+    case ORDER_RELEVANCE:
+        orderBy = "relevance";
+        break;
     case ORDER_DATE:
         orderBy = "date";
         break;
@@ -140,11 +147,8 @@ void YoutubeAPIManager::search(const QString &search)
         orderBy = "rating";
         break;
     case ORDER_VIEWCOUNT:
-        orderBy = "viewCount";
-        break;
-    case ORDER_RELEVANCE:
     default:
-        orderBy = "relevance";
+        orderBy = "viewCount";
         break;
     }
 
@@ -193,6 +197,9 @@ void YoutubeAPIManager::search(const QString &search, const QString &nextPageTok
     QString orderBy;
     switch(d->orderFilter)
     {
+    case ORDER_RELEVANCE:
+        orderBy = "relevance";
+        break;
     case ORDER_DATE:
         orderBy = "date";
         break;
@@ -200,11 +207,8 @@ void YoutubeAPIManager::search(const QString &search, const QString &nextPageTok
         orderBy = "rating";
         break;
     case ORDER_VIEWCOUNT:
-        orderBy = "viewCount";
-        break;
-    case ORDER_RELEVANCE:
     default:
-        orderBy = "relevance";
+        orderBy = "viewCount";
         break;
     }
 
@@ -258,28 +262,37 @@ void YoutubeAPIManager::searchFinished()
     QJsonDocument document = QJsonDocument::fromJson(replyBA);
 
     QJsonObject object = document.object();
-    QJsonArray items = object.value("items").toArray();
+    QJsonArray searchItems = object.value("items").toArray();
+
+    QJsonArray items;
 
     QString videosCommaSeparated;
-    for(int i = 0; i < items.count(); ++i)
+    for(int i = 0; i < searchItems.count(); ++i)
     {
-        QJsonObject resultObj = items.at(i).toObject();
+        QJsonObject resultObj = searchItems.at(i).toObject();
         QJsonObject typeObj = resultObj.value("id").toObject();
         QString videoID = typeObj.value("videoId").toString();
         videosCommaSeparated.append(videoID);
-        if(i < items.count() - 1) videosCommaSeparated.append(",");
+        if(i < searchItems.count() - 1) videosCommaSeparated.append(",");
 
         QJsonObject snippetObj = resultObj.value("snippet").toObject();
-        JsonHelper::modifyValue(d->searchDocument, videoID + ".title", snippetObj.value("title").toString());
-        JsonHelper::modifyValue(d->searchDocument, videoID + ".thumbnail", snippetObj.value("thumbnails").toObject().value("high").toObject().value("url").toString());
+
+        QJsonObject videoInfoObj;
+        videoInfoObj.insert("id", videoID);
+        videoInfoObj.insert("title", snippetObj.value("title").toString());
+        videoInfoObj.insert("thumbnail", snippetObj.value("thumbnails").toObject().value("high").toObject().value("url").toString());
+
+        items.append(videoInfoObj);
     }
+
+    JsonHelper::modifyValue(d->searchDocument, "items", items);
 
     if(object.contains("nextPageToken"))
     {
         JsonHelper::modifyValue(d->searchDocument, "nextPageToken", object.value("nextPageToken").toString());
     }
 
-    if(items.count()) searchVideosDuration(videosCommaSeparated);
+    if(searchItems.count()) searchVideosDuration(videosCommaSeparated);
     else emit searchSuccess(QString(d->searchDocument.toJson()));
 }
 
@@ -345,11 +358,11 @@ void YoutubeAPIManager::searchVideosDurationFinished()
     QJsonDocument document = QJsonDocument::fromJson(replyBA);
 
     QJsonObject object = document.object();
-    QJsonArray items = object.value("items").toArray();
+    QJsonArray searchItems = object.value("items").toArray();
 
-    for(int i = 0; i < items.count(); ++i)
+    for(int i = 0; i < searchItems.count(); ++i)
     {
-        QJsonObject resultObj = items.at(i).toObject();
+        QJsonObject resultObj = searchItems.at(i).toObject();
         QString videoID = resultObj.value("id").toString();
         QJsonObject detailsObj = resultObj.value("contentDetails").toObject();
         QString videoDuration = detailsObj.value("duration").toString();
@@ -387,7 +400,14 @@ void YoutubeAPIManager::searchVideosDurationFinished()
         if(minutesStr.count()) duration.append(minutesStr + ":");
         duration.append(secondsStr);
 
-        JsonHelper::modifyValue(d->searchDocument, videoID + ".duration", duration);
+        QJsonArray items = d->searchDocument.object().value("items").toArray();
+        QJsonObject item = items.at(i).toObject();
+        items.removeAt(i);
+
+        item.insert("duration", duration);
+        items.insert(i, item);
+
+        JsonHelper::modifyValue(d->searchDocument, "items", items);
     }
 
     emit searchSuccess(QString(d->searchDocument.toJson()));

@@ -28,6 +28,9 @@ Rectangle {
     signal dragVideoStarted(string dragInfo)
     signal dragVideoFinished()
 
+    signal showTooltip(string text, real x, real y)
+    signal hideTooltip()
+
     onUserSettingsChanged: {
         if(userSettings) minimizeVideo()
     }
@@ -36,11 +39,13 @@ Rectangle {
         if(thumbnailHovered) {
             if(!currentVideoID) return
 
+            playlistInfo.opacity = 1
             buttonShowVideoLarge.opacity = 1
             buttonShowVideoFullscreen.opacity = 1
             favoriteVideoImage.opacity = currentVideoFavorited ? .7 : .3
         }
         else {
+            playlistInfo.opacity = 0
             buttonShowVideoLarge.opacity = 0
             buttonShowVideoFullscreen.opacity = 0
             favoriteVideoImage.opacity = 0
@@ -116,7 +121,7 @@ Rectangle {
                 onDraggingChanged: {
                     if(contains(Qt.point(dropArea.mapFromItem(null, ApplicationManager.mouseX, 0).x,
                                          dropArea.mapFromItem(null, 0, ApplicationManager.mouseY).y))) {
-                        button.color = "transparent"
+                        if(!checked) button.color = "transparent"
                         buttonText.dragging = false
 
                         if(!sidebarList.contains(Qt.point(sidebarList.mapFromItem(null, ApplicationManager.mouseX, 0).x,
@@ -275,6 +280,7 @@ Rectangle {
                     onClicked: {
                         var playlist = PlaylistsManager.createPlaylist()
                         buttonsModel.append({"captionText": playlist.name, type: "playlist"})
+                        buttonsModel.quick_sort_starting_at(6)
                         sidebarList.selectedIndex = buttonsModel.count - 1
                         requestPlaylist(playlist.name)
                     }
@@ -283,39 +289,17 @@ Rectangle {
         }
     }
 
-    ListModel {
+    BWListModel {
         id: buttonsModel
+        sortColumnName: "captionText"
 
-        ListElement {
-            captionText: "Browse"
-            url: ""
-            type: "separator"
-        }
-        ListElement {
-            captionText: "Search"
-            url: "SearchView.qml"
-            type: "page"
-        }
-        ListElement {
-            captionText: "Discover"
-            url: "DiscoverView.qml"
-            type: "page"
-        }
-        ListElement {
-            captionText: "Favorites"
-            url: "FavoritesView.qml"
-            type: "page"
-        }
-        ListElement {
-            captionText: "Playing Queue"
-            url: "PlayingQueue.qml"
-            type: "page"
-        }
-        ListElement {
-            captionText: "Playlists"
-            url: ""
-            type: "separator"
-            playlistSeparator: true
+        Component.onCompleted: {
+            buttonsModel.append({"captionText": "Browse", url: "", type: "separator"})
+            buttonsModel.append({"captionText": "Search", url: "SearchView.qml", type: "page"})
+            buttonsModel.append({"captionText": "Discover", url: "DiscoverView.qml", type: "page"})
+            buttonsModel.append({"captionText": "Favorites", url: "FavoritesView.qml", type: "page"})
+            buttonsModel.append({"captionText": "Playing Queue", url: "PlayingQueue.qml", type: "page"})
+            buttonsModel.append({"captionText": "Playlists", url: "", type: "separator", playlistSeparator: true})
         }
     }
 
@@ -393,6 +377,7 @@ Rectangle {
         }
 
         onVisibleChanged: {
+            playlistInfo.opacity = 0
             buttonShowVideoLarge.opacity = 0
             buttonShowVideoFullscreen.opacity = 0
             favoriteVideoImage.opacity = 0
@@ -445,11 +430,48 @@ Rectangle {
             }
         }
 
+        Rectangle {
+            id: playlistInfo
+            width: 8
+            height: width
+            radius: width * .5
+            border.width: 1
+            border.color: "#333333"
+            color: "#cccccc"
+            visible: playlists.length
+            opacity: 0
+
+            property var playlists: PlaylistsManager.itemPlaylists(currentVideoID, "")
+
+            anchors {
+                left: parent.left
+                leftMargin: 13
+                verticalCenter: buttonShowVideoLarge.verticalCenter
+            }
+
+            Behavior on opacity {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+
+                onEntered: {
+                    parent.opacity = 1
+                    showTooltip(parent.playlists, playlistInfo.x + video.x + 20, playlistInfo.y + video.y)
+                }
+
+                onExited: {
+                    hideTooltip()
+                }
+            }
+        }
+
         Image {
             id: buttonShowVideoLarge
             width: 25
             height: 25
-            //color: "white"
             source: "qrc:/images/enlarge"
             opacity: 0
             sourceSize.width: width
@@ -657,6 +679,7 @@ Rectangle {
 
         onPlaylistAdded: {
             buttonsModel.append({"captionText": name, type: "playlist"})
+            buttonsModel.quick_sort_starting_at(6)
         }
 
         onPlaylistRemoved: {
@@ -699,6 +722,7 @@ Rectangle {
                 if(item.captionText === oldName)
                 {
                     item.captionText = name
+                    buttonsModel.quick_sort_starting_at(6)
                     break;
                 }
             }

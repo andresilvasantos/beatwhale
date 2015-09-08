@@ -356,7 +356,7 @@ Rectangle {
             id: buttonDeleteAccount
             width: childrenRect.width + 20
             height: 30
-            color: "#656565"
+            color: "#66D90F30"
             hoverColor: "#D90F30"
             selectedColor: "#F24261"
             radius: 5
@@ -400,6 +400,7 @@ Rectangle {
         fontFamily: "Open Sans"
 
         onAccepted: {
+            popupDeleteAccount.enabled = false
             UserManager.deleteAccount()
         }
 
@@ -426,6 +427,7 @@ Rectangle {
         fontFamily: "Open Sans"
 
         onAccepted: {
+            popupDeleteAccountFailed.enabled = false
             UserManager.deleteAccount()
         }
 
@@ -439,28 +441,26 @@ Rectangle {
     Connections {
         target: UserManager
 
-        onAccountDeleted: {
-            if(success) {
-                logoutRequested()
-            }
-            else {
-                popupDeleteAccount.visible = false
-                popupDeleteAccountFailed.visible = true
-            }
+        onDeleteAccountSuccess: {
+            logoutRequested()
         }
 
-        onPasswordChanged: {
-            if(success) {
-                console.log("Password changed!")
-                passwordChangeStatusText.color = "#333333"
-                passwordChangeStatusText.text = "Password changed."
-                newPasswordInput.text = ""
-                retypePasswordInput.text = ""
-            }
-            else {
-                passwordChangeStatusText.color = "#D90F30"
-                passwordChangeStatusText.text = "Problem changing password."
-            }
+        onDeleteAccountFailed: {
+            popupDeleteAccount.visible = false
+            popupDeleteAccountFailed.visible = true
+        }
+
+        onChangePasswordSuccess: {
+            console.log("Password changed!")
+            passwordChangeStatusText.color = "#333333"
+            passwordChangeStatusText.text = "Password changed."
+            newPasswordInput.text = ""
+            retypePasswordInput.text = ""
+        }
+
+        onChangePasswordFailed: {
+            passwordChangeStatusText.color = "#D90F30"
+            passwordChangeStatusText.text = "Problem changing password."
         }
     }
 }

@@ -9,6 +9,7 @@ import QmlVlc 0.1
 Rectangle {
     id: rootRect
     color: "#eeeeee"
+    focus: true
 
     property int currentVideoIndex: -1
     property bool shuffleEnabled: false
@@ -45,6 +46,7 @@ Rectangle {
         if(playingModel.count <= index || index < 0) return
 
         playingModel.remove(index)
+        UserManager.removedFromQueue(index);
 
         if(playingModel.count == 0 || (index === currentVideoIndex && index >= playingModel.count)) {
             mediaPlayer.stop()
@@ -189,7 +191,7 @@ Rectangle {
             onMinimizeVideoRequested: {
                 videoMaximized.visible = false
                 videoFullscreen.visible = false
-                ApplicationManager.showNormal()
+                ApplicationManager.showFullscreen(false)
             }
 
             onRequestScreen: {
@@ -220,6 +222,8 @@ Rectangle {
                 else message = "Added to playing queue: " + title
                 ApplicationManager.triggerNotification(message)
                 playingModel.append({"id": id, "title": title, "subtitle": subtitle, "thumbnail": thumbnail, "duration": duration})
+                UserManager.addedToQueue(id, title, subtitle, thumbnail, duration)
+
                 if(playingModel.count == 1) playVideo(0)
                 else {
                     if(shuffleEnabled) {
@@ -234,6 +238,17 @@ Rectangle {
 
             onDragVideoFinished: {
                 finishVideosDrag()
+            }
+
+            onShowTooltip: {
+                tooltip.displayText = text
+                tooltip.x = x
+                tooltip.y = y + mainPanel.y + topBar.height
+                tooltip.opacity = 1
+            }
+
+            onHideTooltip: {
+                tooltip.opacity = 0
             }
         }
 
@@ -467,6 +482,7 @@ Rectangle {
         id: controlsBar
         width: parent.width
         height: 50
+        focus: true
 
         anchors {
             bottom: parent.bottom
@@ -487,7 +503,14 @@ Rectangle {
                 mediaPlayer.play(url)
                 seek(position)
             }
-            else mediaPlayer.play()
+            else {
+                if(mediaPlayer.mrl.length) {
+                    mediaPlayer.play()
+                }
+                else if(playingModel.count && currentVideoIndex > -1) {
+                    playVideo(currentVideoIndex)
+                }
+            }
         }
 
         onPause: {
@@ -528,6 +551,22 @@ Rectangle {
         }
     }
 
+    Keys.onPressed: {
+        if(event.key === Qt.Key_Space || event.key === Qt.Key_Play) {
+            if(controlsBar.playing) controlsBar.pause()
+            else controlsBar.play()
+            event.accepted = true;
+        }
+        else if(event.key === Qt.Key_Minus || event.key === Qt.Key_Back) {
+            controlsBar.previous()
+            event.accepted = true;
+        }
+        else if(event.key === Qt.Key_Plus || event.key === Qt.Key_Forward) {
+            controlsBar.next()
+            event.accepted = true;
+        }
+    }
+
     BWVideo {
         id: videoFullscreen
         visible: false
@@ -562,6 +601,17 @@ Rectangle {
                 top: parent.top
                 margins: 5
             }
+        }
+    }
+
+    BWTooltip {
+        id: tooltip
+        visible: opacity != 0
+        opacity: 0
+
+        onXChanged: {
+            tooltip.width = rootRect.width - (x + 20)
+            tooltip.height = rootRect.height - (y + 20)
         }
     }
 
@@ -632,12 +682,29 @@ Rectangle {
         target: listsViewLoader.item && listsViewLoader.visible ? listsViewLoader.item : searchViewLoader.item
         ignoreUnknownSignals: true
 
+        onShowTooltip: {
+            tooltip.displayText = text
+            tooltip.x = mainPanel.x + x
+            tooltip.y = mainPanel.y + splitView.y + y// - resultsGrid.contentY + resultsGrid.topMarginValue
+            tooltip.opacity = 1
+        }
+
+        onHideTooltip: {
+            tooltip.opacity = 0
+        }
+
+        onSearchFieldFocus: {
+            topBar.searchFocus()
+        }
+
         onPlayVideoAndAddToQueue: {
             var message
             if(subtitle.length) message = "Added to playing queue: " + title + " - " + subtitle
             else message = "Added to playing queue: " + title
             ApplicationManager.triggerNotification(message)
             playingModel.append({"id": id, "title": title, "subtitle": subtitle, "thumbnail": thumbnail, "duration": duration})
+            UserManager.addedToQueue(id, title, subtitle, thumbnail, duration)
+
             playVideo(playingModel.count - 1)
         }
 
@@ -647,6 +714,8 @@ Rectangle {
             else message = "Added to playing queue: " + title
             ApplicationManager.triggerNotification(message)
             playingModel.append({"id": id, "title": title, "subtitle": subtitle, "thumbnail": thumbnail, "duration": duration})
+            UserManager.addedToQueue(id, title, subtitle, thumbnail, duration)
+
             if(playingModel.count == 1) playVideo(0)
             else {
                 if(shuffleEnabled) {
@@ -668,8 +737,10 @@ Rectangle {
             if(playingModel.count == 0) needsToPlay = true
             for(var i = 0; i < model.count; ++i)
             {
-                playingModel.append({"id": model.get(i).id, "title": model.get(i).title, "subtitle": model.get(i).subtitle,
-                                        "thumbnail": model.get(i).thumbnail, "duration": model.get(i).duration})
+                var item = model.get(i)
+                playingModel.append({"id": item.id, "title": item.title, "subtitle": item.subtitle,
+                                        "thumbnail": item.thumbnail, "duration": item.duration})
+                UserManager.addedToQueue(item.id, item.title, item.subtitle, item.thumbnail, item.duration)
             }
 
             if(shuffleEnabled) {
@@ -715,6 +786,24 @@ Rectangle {
                 else message = "Problem playing item: " + element.title
                 ApplicationManager.triggerNotification(message)
                 problemPlayingVideoTimer.start()
+            }
+        }
+    }
+
+    Connections {
+        target: UserManager
+
+        onQueueItemAdded: {
+            playingModel.append({"id": item.id, "title": item.title, "subtitle": item.subTitle, "thumbnail": item.thumbnail, "duration": item.duration})
+            if(playingModel.count == 1) {
+                sideBar.currentVideoID = item.id
+                sideBar.currentTitle = item.title
+                sideBar.currentSubTitle = item.subTitle
+                sideBar.currentThumbnail = item.thumbnail
+                sideBar.currentDuration = item.duration
+                sideBar.currentVideoFavorited = PlaylistsManager.isFavorited(item.id)
+
+                currentVideoIndex = 0
             }
         }
     }

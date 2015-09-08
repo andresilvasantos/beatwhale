@@ -15,10 +15,14 @@ Rectangle {
     property string searchText
 
 
+    signal searchFieldFocus()
     signal playVideoAndAddToQueue(string id, string title, string subtitle, string thumbnail, string duration)
     signal addVideoToPlayQueue(string id, string title, string subtitle, string thumbnail, string duration)
     signal dragVideosStarted(string dragInfo)
     signal dragVideosFinished()
+
+    signal showTooltip(string text, real x, real y)
+    signal hideTooltip()
 
     function newSearch(search) {
         resultsGrid.videosSelected = []
@@ -63,10 +67,30 @@ Rectangle {
 
             anchors.centerIn: parent
 
-            opacity: searchModel.count == 0 ? .5 : 0
+            visible: searchModel.count == 0 ? true : false
+            opacity: visible ? .5 : 0
 
             Behavior on opacity {
                 NumberAnimation { property: "opacity"; duration: 200; easing.type: Easing.OutSine }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+
+                onEntered: {
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                }
+
+                onExited: {
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                }
+
+                onClicked: {
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    visible = false
+                    searchFieldFocus()
+                }
             }
         }
 
@@ -129,14 +153,12 @@ Rectangle {
                     }
 
                     onShowTooltip: {
-                        tooltip.displayText = text
-                        tooltip.x = thumbnailDelegate.x + x
-                        tooltip.y = thumbnailDelegate.y + y - resultsGrid.contentY
-                        tooltip.opacity = 1
+                        rootRect.showTooltip(text, x + thumbnailDelegate.x + resultsGridHolder.x,
+                                             y + thumbnailDelegate.y + resultsGridHolder.y - resultsGrid.contentY)
                     }
 
                     onHideTooltip: {
-                        tooltip.opacity = 0
+                        rootRect.hideTooltip()
                     }
 
                     onSelectionRequest: {
@@ -233,17 +255,6 @@ Rectangle {
                 }
             }
 
-            BWTooltip {
-                id: tooltip
-                visible: opacity != 0
-                opacity: 0
-
-                onXChanged: {
-                    tooltip.width = mainPanel.width - (resultsGridHolder.x + x + 20)
-                    tooltip.height = mainPanel.height - (resultsGridHolder.y + y + 20)
-                }
-            }
-
             TOPScrollBar {
                 flickable: resultsGrid
             }
@@ -266,13 +277,13 @@ Rectangle {
                 nextPageToken = ""
             }
 
-            for(var key in obj) {
+            for(var key in obj["items"]) {
                 if(key === "nextPageToken") continue
 
-                var videoID = key
-                var title = obj[key]["title"]
-                var videoThumbnailUrl = obj[key]["thumbnail"]
-                var videoDuration = obj[key]["duration"]
+                var videoID = obj["items"][key]["id"]
+                var title = obj["items"][key]["title"]
+                var videoThumbnailUrl = obj["items"][key]["thumbnail"]
+                var videoDuration = obj["items"][key]["duration"]
 
                 var videoTitle;
                 var videoSubTitle;

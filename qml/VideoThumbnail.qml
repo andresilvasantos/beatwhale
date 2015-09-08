@@ -10,6 +10,7 @@ Rectangle {
     property string videoSubTitle
     property string videoThumbnail
     property string videoDuration
+    property string playlistName: ""
     property bool playQueue: false
     property bool playlist: false
     property bool selected
@@ -165,6 +166,38 @@ Rectangle {
             }
         }
 
+        Rectangle {
+            id: playlistInfo
+            width: 8
+            height: width
+            radius: width * .5
+            border.width: 1
+            border.color: "#333333"
+            color: "#cccccc"
+            visible: playlists.length
+
+            property var playlists: PlaylistsManager.itemPlaylists(videoID, playlistName)
+
+            anchors {
+                left: durationText.right
+                leftMargin: 10
+                verticalCenter: durationText.verticalCenter
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+
+                onEntered: {
+                    showTooltip(parent.playlists, playlistInfo.x + 30, playlistInfo.y)
+                }
+
+                onExited: {
+                    hideTooltip()
+                }
+            }
+        }
+
         Image {
             id: removeVideoImage
             width: 30
@@ -204,6 +237,7 @@ Rectangle {
                 }
 
                 onClicked: {
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
                     if(playQueue || playlist) removeVideo(videoID)
                 }
             }
@@ -455,7 +489,7 @@ Rectangle {
 
     Timer {
         id: showTooltipSubTitleTimer
-        interval: 2000
+        interval: 1200
 
         onTriggered: {
             showTooltip(videoSubTitle, subTitleText.x + subTitleTextMouseArea.mouseX, subTitleText.y + subTitleTextMouseArea.mouseY)
@@ -464,7 +498,7 @@ Rectangle {
 
     Timer {
         id: showTooltipTitleTimer
-        interval: 2000
+        interval: 1200
 
         onTriggered: {
             showTooltip(videoTitle, titleText.x + titleTextMouseArea.mouseX, titleText.y + titleTextMouseArea.mouseY)

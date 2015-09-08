@@ -26,6 +26,73 @@ ApplicationWindow {
         source: "LoginScreen.qml"
     }
 
+    Rectangle {
+        width: 25
+        height: width
+        rotation: 45
+        color: "#cccccc"
+        opacity: .5
+        visible: !ApplicationManager.maximized && !ApplicationManager.fullscreen
+
+        anchors {
+            right: parent.right
+            rightMargin: -13
+            bottom: parent.bottom
+            bottomMargin: -13
+        }
+
+        Behavior on opacity {
+            NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+
+            onEntered: {
+                parent.opacity = 1
+            }
+
+            onExited: {
+                parent.opacity = .5
+            }
+
+            onPressed: {
+                ApplicationManager.setGrabbingWindowResizeHandle(true)
+            }
+
+            onReleased: {
+                ApplicationManager.setGrabbingWindowResizeHandle(false)
+            }
+        }
+    }
+
+    Rectangle {
+        color: "transparent"
+        border.color: "#cccccc"
+        border.width: 1
+        anchors.fill: parent
+        visible: !ApplicationManager.fullscreen
+    }
+
+    WindowControls {
+        id: windowControls
+        height: 20
+        spacing: 10
+        visible: !ApplicationManager.fullscreen
+
+        anchors {
+            right: parent.right
+            rightMargin: 20
+            top: parent.top
+            topMargin: 20
+        }
+
+        onMaximize: ApplicationManager.showMaximized()
+        onMinimize: ApplicationManager.showMinimized()
+        onClose: ApplicationManager.quit()
+    }
+
     Connections {
         id: connectionsLoginScreen
         target: loaderLogin.item

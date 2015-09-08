@@ -50,7 +50,8 @@ Rectangle {
                 registerComponentRect.state = "CHECKING_UNIQUE_USERNAME_AND_EMAIL"
                 waitingInterface = true
 
-                UserManager.checkUniqueUsername(username)
+                code = UserManager.generateActivationCode()
+                UserManager.createAccountVerification(username, email, code)
             }
 
             Rectangle {
@@ -337,7 +338,7 @@ Rectangle {
                 registerComponentRect.state = "SIGNING_UP"
                 waitingInterface = true
 
-                UserManager.createUserDocument(username, password)
+                UserManager.createAccount(username, password, email)
             }
 
             Text {
@@ -520,9 +521,6 @@ Rectangle {
             PropertyChanges { target: componentLoader; opacity: 0 }
             PropertyChanges { target: backgroundFormRect; height: formCloseHeight }
         }
-        /*,State {
-            name: "LOGGED_IN"
-        }*/
     ]
 
     transitions: Transition {
@@ -533,95 +531,26 @@ Rectangle {
     Connections {
         target: UserManager
 
-        onCheckUniqueUsernameFailed: {
+        onCreateAccountVerificationFailed: {
             statusMessage = message
             registerComponentRect.state = "LOGGED_OFF"
             waitingInterface = false
         }
 
-        onCheckUniqueUsernameSuccess: {
-            UserManager.checkUniqueEmail(email)
-        }
-
-        onCheckUniqueEmailFailed: {
-            statusMessage = message
-            registerComponentRect.state = "LOGGED_OFF"
-            waitingInterface = false
-        }
-
-        onCheckUniqueEmailSuccess: {
-            code = UserManager.generateActivationCode()
-            UserManager.sendCodeByEmail(email, code)
-        }
-
-        onSendCodeByEmailFailed: {
-            statusMessage = message
-            registerComponentRect.state = "LOGGED_OFF"
-            waitingInterface = false
-        }
-
-        onSendCodeByEmailSuccess: {
+        onCreateAccountVerificationSuccess: {
             componentLoader.sourceComponent = confirmationCodeComponent
             waitingInterface = false
             registerComponentRect.state = "CODE_CONFIRMATION"
         }
 
-        onCreateUserDocumentFailed: {
+        onCreateAccountFailed: {
             componentLoader.sourceComponent = registerFormComponent
             statusMessage = message
             registerComponentRect.state = "LOGGED_OFF"
             waitingInterface = false
         }
 
-        onCreateUserDocumentSuccess: {
-            console.log("YAYKS!")
-            UserManager.createUserDatabase(username)
-        }
-
-        onCreateUserDatabaseFailed: {
-            componentLoader.sourceComponent = registerFormComponent
-            statusMessage = message
-            registerComponentRect.state = "LOGGED_OFF"
-            waitingInterface = false
-        }
-
-        onCreateUserDatabaseSuccess: {
-            console.log("Good.")
-            UserManager.updateSettingsFile(username, email)
-        }
-
-        onUpdateSettingsFileFailed: {
-            componentLoader.sourceComponent = registerFormComponent
-            statusMessage = message
-            registerComponentRect.state = "LOGGED_OFF"
-            waitingInterface = false
-        }
-
-        onUpdateSettingsFileSuccess: {
-            console.log("Great!")
-            UserManager.updateDatabaseSecurity(username)
-        }
-
-        onUpdateDatabaseSecurityFailed: {
-            componentLoader.sourceComponent = registerFormComponent
-            statusMessage = message
-            registerComponentRect.state = "LOGGED_OFF"
-            waitingInterface = false
-        }
-
-        onUpdateDatabaseSecuritySuccess: {
-            console.log("Final step!")
-            UserManager.createEmailDocument(email, username)
-        }
-
-        onCreateEmailDocumentFailed: {
-            componentLoader.sourceComponent = registerFormComponent
-            statusMessage = message
-            registerComponentRect.state = "LOGGED_OFF"
-            waitingInterface = false
-        }
-
-        onCreateEmailDocumentSuccess: {
+        onCreateAccountSuccess: {
             console.log("Almost there...")
             UserManager.setRememberCredentials(false)
             UserManager.login(username, password)

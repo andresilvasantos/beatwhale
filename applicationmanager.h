@@ -15,6 +15,8 @@ class ApplicationManager : public QObject
     Q_PROPERTY(qreal mouseX READ mouseX WRITE setMouseX NOTIFY mouseXChanged)
     Q_PROPERTY(qreal mouseY READ mouseY WRITE setMouseY NOTIFY mouseYChanged)
     Q_PROPERTY(qreal dragging READ dragging NOTIFY draggingChanged)
+    Q_PROPERTY(bool maximized READ maximized NOTIFY maximizedChanged)
+    Q_PROPERTY(bool fullscreen READ fullscreen NOTIFY fullscreenChanged)
     Q_ENUMS(CursorType)
 
 public:
@@ -30,9 +32,21 @@ public:
     static ApplicationManager* singleton();
     static void declareQML();
 
+    QString beatwhaleAPIUrl() const;
+
     Q_INVOKABLE QString version() const;
 
+    QWindow* window() const;
     void setWindow(QWindow *window);
+
+    Q_INVOKABLE bool maximized() const;
+    Q_INVOKABLE bool fullscreen() const;
+
+    bool grabbingWindowMoveHandle() const;
+    Q_INVOKABLE void setGrabbingWindowMoveHandle(bool grabbing);
+
+    bool grabbingWindowResizeHandle() const;
+    Q_INVOKABLE void setGrabbingWindowResizeHandle(bool grabbing);
 
     int mouseX() const;
     void setMouseX(const int& mouseX);
@@ -47,6 +61,9 @@ public:
     void setNotificationsEnabled(const bool& enabled);
 
 signals:
+    void maximizedChanged(bool maximized);
+    void fullscreenChanged(bool fullscreen);
+
     void mouseXChanged(int mouseX);
     void mouseYChanged(int mouseY);
 
@@ -54,10 +71,16 @@ signals:
     void notification(QString message);
 
 public slots:
+    void loadConfiguration();
     void checkForUpdates();
 
-    Q_INVOKABLE void showNormal();
-    Q_INVOKABLE void showFullscreen();
+    Q_INVOKABLE void quit();
+    Q_INVOKABLE void saveWindowData();
+
+    Q_INVOKABLE void showMinimized();
+    Q_INVOKABLE bool showNormal();
+    Q_INVOKABLE void showMaximized();
+    Q_INVOKABLE void showFullscreen(bool fullscreen = true);
 
     Q_INVOKABLE void dragStarted(const QString& dragInfo);
     Q_INVOKABLE void dragFinished();
@@ -65,7 +88,8 @@ public slots:
     Q_INVOKABLE void triggerNotification(const QString& message);
 
 private slots:
-    void checkForUpdatesReply();
+    void loadConfigurationReply();
+    //void checkForUpdatesReply();
 
 private:
     explicit ApplicationManager(QObject *parent = 0);

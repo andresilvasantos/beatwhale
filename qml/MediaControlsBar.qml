@@ -180,6 +180,10 @@ Rectangle {
             onSliderReleased: {
                 UserManager.setVolume(value)
             }
+
+            Component.onCompleted: {
+                value = UserManager.volume()
+            }
         }
 
         Item {

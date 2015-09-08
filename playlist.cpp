@@ -58,6 +58,12 @@ void Playlist::setName(const QString &name)
     emit nameChanged(d->name, oldName);
 }
 
+bool Playlist::containsItem(const QString &id) const
+{
+    Q_D(const Playlist);
+    return d->videoItems.contains(id);
+}
+
 void Playlist::addItem(const QString &id, const QString &title, const QString &subTitle, const QString &thumbnail, const QString& duration, QString timestamp)
 {
     Q_D(Playlist);

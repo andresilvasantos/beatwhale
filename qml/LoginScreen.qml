@@ -17,6 +17,19 @@ Rectangle {
 
     signal loggedIn()
 
+    MouseArea {
+        width: parent.width
+        height: 40
+
+        onPressed: {
+            ApplicationManager.setGrabbingWindowMoveHandle(true)
+        }
+
+        onReleased: {
+            ApplicationManager.setGrabbingWindowMoveHandle(false)
+        }
+    }
+
     Rectangle {
         id: backgroundFormRect
         width: 300

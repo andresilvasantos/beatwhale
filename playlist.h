@@ -20,6 +20,8 @@ public:
     QString name() const;
     void setName(const QString& name);
 
+    Q_INVOKABLE bool containsItem(const QString& id) const;
+
     Q_INVOKABLE void addItem(const QString& id, const QString& title, const QString& subTitle, const QString& thumbnail,
                              const QString& duration, QString timestamp = QString());
     Q_INVOKABLE void addItems(const QStringList& ids, const QStringList& titles, const QStringList& subTitles, const QStringList& thumbnails,

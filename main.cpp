@@ -51,9 +51,9 @@ int main(int argc, char *argv[])
 
     QFontDatabase::addApplicationFont(":/fonts/openSans");
     QFontDatabase::addApplicationFont(":/fonts/openSansBold");
+    QFontDatabase::addApplicationFont(":/fonts/harabara");
 
-    QSettings settings("beatwhale_config.ini", QSettings::IniFormat);
-    DatabaseManager::singleton()->setBaseUrl(settings.value("database_url").toString());
+    ApplicationManager::singleton()->loadConfiguration();
 
     ApplicationManager::declareQML();
     UserManager::declareQML();
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
     MouseEventFilter mouseFilter;
     window->installEventFilter(&closeFilter);
     window->installEventFilter(&mouseFilter);
-    window->show();
+    window->setFlags(window->flags() | Qt::FramelessWindowHint);
 
     ApplicationManager::singleton()->setWindow(window);
 

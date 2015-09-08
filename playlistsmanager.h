@@ -2,6 +2,7 @@
 #define PLAYLISTSMANAGER_H
 
 #include <QObject>
+#include <QStringList>
 
 class QQmlContext;
 class QQmlEngine;
@@ -30,6 +31,8 @@ public:
     Q_INVOKABLE QList<QString> playlistNames() const;
     void addPlaylist(Playlist *playlist);
     Q_INVOKABLE Playlist* playlist(const QString& name) const;
+
+    Q_INVOKABLE QStringList itemPlaylists(const QString& id, const QString& excludingPlaylistName) const;
 
 signals:
     void favoritesChanged();

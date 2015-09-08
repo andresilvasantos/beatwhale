@@ -2,11 +2,13 @@
 #include "playlistsmanager.h"
 #include "playlist.h"
 #include "applicationmanager.h"
+#include "videoitem.h"
 
 #include <databasemanager.h>
 #include <jsonhelper.h>
-#include <email/emailmanager.h>
 
+#include <QFile>
+#include <QTextStream>
 #include <QtQml>
 #include <QDebug>
 
@@ -16,34 +18,20 @@ class UserManagerPrivate
 {
 public:
     UserManagerPrivate() :
+        networkManager(0),
         firstTime(true),
         waitingForChanges(false),
         documentReadyForUpload(false),
-        localSettings(QSettings::IniFormat, QSettings::UserScope, "BeatWhale", "beatwhale_app"),
-        emailManager(0)
+        localSettings(QSettings::IniFormat, QSettings::UserScope, "BeatWhale", "beatwhale_app")
     {
-        QSettings settings("beatwhale_config.ini", QSettings::IniFormat);
-        adminUsername = settings.value("database_user").toString();
-        adminPassword = settings.value("database_pw").toString();
-
-        beatwhaleEmail = settings.value("beatwhale_email").toString();
-        beatwhaleEmailPassword = settings.value("beatwhale_email_password").toString();
-        beatwhaleEmailServer = settings.value("beatwhale_email_server").toString();
-        beatwhaleEmailPort = settings.value("beatwhale_email_port").toInt();
     }
 
     virtual ~UserManagerPrivate()
     {
-        if(emailManager) delete emailManager;
+        if(networkManager) delete networkManager;
     }
 
-    QString adminUsername;
-    QString adminPassword;
-
-    QString beatwhaleEmail;
-    QString beatwhaleEmailPassword;
-    QString beatwhaleEmailServer;
-    int beatwhaleEmailPort;
+    QNetworkAccessManager *networkManager;
 
     QString username;
     QString password;
@@ -60,7 +48,9 @@ public:
     bool waitingForChanges;
     bool documentReadyForUpload;
 
-    EmailManager *emailManager;
+    QFile *queueFile;
+    QTextStream queueFileStream;
+    QStringList queueStringList;
 };
 
 UserManager::UserManager(QObject *parent) :
@@ -141,336 +131,6 @@ void UserManager::setRememberCredentials(const bool &remember)
     }
 }
 
-void UserManager::checkUniqueEmail(const QString &email)
-{
-    Q_D(UserManager);
-
-    DatabaseManager::singleton()->setCredentials(d->adminUsername, d->adminPassword);
-
-    connect(DatabaseManager::singleton(), SIGNAL(documentRetrieved(bool, QString, QJsonDocument)),
-            SLOT(checkUniqueEmailReply(bool, QString, QJsonDocument)));
-    DatabaseManager::singleton()->retrieveDocument("emails", email, DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::checkUniqueEmailReply(const bool& connectionSuccess, const QString &id, const QJsonDocument &document)
-{
-    Q_D(UserManager);
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(documentRetrieved(bool, QString, QJsonDocument)),
-               this, SLOT(checkUniqueEmailReply(bool, QString, QJsonDocument)));
-
-    DatabaseManager::singleton()->clearCredentials();
-
-    if(!connectionSuccess)
-    {
-        emit checkUniqueEmailFailed("Connection problem.");
-        return;
-    }
-
-    if(!document.isObject())
-    {
-        emit checkUniqueEmailFailed("Problem reaching BeatWhale database. Please try again later.");
-        return;
-    }
-
-    QJsonObject object = document.object();
-
-    if(object.contains("error"))
-    {
-        if(object.value("error").toString() == "not_found")
-        {
-            emit checkUniqueEmailSuccess();
-        }
-        else
-        {
-            emit checkUniqueEmailFailed("Problem with BeatWhale database. Please try again later.");
-        }
-        return;
-    }
-
-    emit checkUniqueEmailFailed("This email is already linked to a BeatWhale account.");
-}
-
-void UserManager::checkUniqueUsername(const QString &username)
-{
-    Q_D(UserManager);
-
-    DatabaseManager::singleton()->setCredentials(d->adminUsername, d->adminPassword);
-
-    if(username.count() < 4)
-    {
-        emit checkUniqueUsernameFailed("Username must have more than 4 characters.");
-        return;
-    }
-
-    connect(DatabaseManager::singleton(), SIGNAL(documentRetrieved(bool, QString, QJsonDocument)),
-            SLOT(checkUniqueUsernameReply(bool, QString, QJsonDocument)));
-    DatabaseManager::singleton()->retrieveDocument("_users", "org.couchdb.user:" + username, DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::checkUniqueUsernameReply(const bool& connectionSuccess, const QString &id, const QJsonDocument &document)
-{
-    Q_D(UserManager);
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(documentRetrieved(bool, QString, QJsonDocument)),
-               this, SLOT(checkUniqueUsernameReply(bool, QString, QJsonDocument)));
-
-    DatabaseManager::singleton()->clearCredentials();
-
-    if(!connectionSuccess)
-    {
-        emit checkUniqueUsernameFailed("Connection problem.");
-        return;
-    }
-
-    if(!document.isObject())
-    {
-        emit checkUniqueUsernameFailed("Problem reaching BeatWhale database. Please try again later.");
-        return;
-    }
-
-    QJsonObject object = document.object();
-
-    if(object.contains("error"))
-    {
-        if(object.value("error").toString() == "not_found")
-        {
-            emit checkUniqueUsernameSuccess();
-        }
-        else
-        {
-            emit checkUniqueUsernameFailed("Problem with BeatWhale database. Please try again later.");
-        }
-        return;
-    }
-
-    emit checkUniqueUsernameFailed("Username already exists. Please choose another one.");
-}
-
-void UserManager::createUserDocument(const QString &username, const QString &password)
-{
-    Q_D(UserManager);
-
-    DatabaseManager::singleton()->setCredentials(d->adminUsername, d->adminPassword);
-
-    d->username = username;
-    d->password = password;
-
-    QString randomHex;
-    for(int i = 0; i < 16; i++)
-    {
-        int n = qrand() % 16;
-        randomHex.append(QString::number(n,16));
-    }
-
-    QByteArray salt = QByteArray(randomHex.toStdString().c_str()).toHex();
-    QString hash = QString(QCryptographicHash::hash((password.toStdString().c_str() + salt),QCryptographicHash::Sha1).toHex());
-
-    QJsonObject obj;
-    obj.insert("name", username);
-    obj.insert("password_scheme", QString("simple"));
-    obj.insert("type", QString("user"));
-    obj.insert("password_sha", hash);
-    obj.insert("salt", QString(salt));
-
-    QJsonDocument document(obj);
-    QByteArray documentBA = document.toJson();
-
-    connect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), SLOT(createUserDocumentReply(bool,QString)));
-    DatabaseManager::singleton()->updateDocument("_users", "org.couchdb.user:" + username, documentBA, DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::createUserDocumentReply(const bool& success, const QString &id)
-{
-    Q_D(UserManager);
-
-    if("org.couchdb.user:" + d->username != id) return;
-
-    DatabaseManager::singleton()->clearCredentials();
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool, QString, QString)),
-               this, SLOT(createUserDocumentReply(bool, QString)));
-
-    if(!success)
-    {
-        emit createUserDocumentFailed("An error occurred. Please try again.");
-        return;
-    }
-
-    emit createUserDocumentSuccess();
-}
-
-void UserManager::createUserDatabase(const QString& username) const
-{
-    Q_D(const UserManager);
-
-    DatabaseManager::singleton()->setCredentials(d->adminUsername, d->adminPassword);
-
-    qDebug() << "Creating user database for" << username;
-
-    connect(DatabaseManager::singleton(), SIGNAL(databaseReplicated(bool)), SLOT(createUserDatabaseReply(bool)));
-    DatabaseManager::singleton()->replicateDatabase("user_template", "u_" + username.toLower(), DatabaseManager::ACCESSTYPE_REMOTE, DatabaseManager::ACCESSTYPE_REMOTE, true, false);
-}
-
-void UserManager::createUserDatabaseReply(const bool& success)
-{
-    Q_D(UserManager);
-
-    DatabaseManager::singleton()->clearCredentials();
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(databaseReplicated(bool)), this, SLOT(createUserDatabaseReply(bool)));
-
-    if(!success)
-    {
-        emit createUserDatabaseFailed("An error occurred. Please try again.");
-        return;
-    }
-
-    emit createUserDatabaseSuccess();
-}
-
-void UserManager::updateSettingsFile(const QString& username, const QString &email)
-{
-    Q_D(UserManager);
-
-    d->email = email;
-    d->username = username;
-    updateSettingsFileStepRetrieve();
-}
-
-void UserManager::updateSettingsFileStepRetrieve()
-{
-    Q_D(UserManager);
-
-    DatabaseManager::singleton()->setCredentials(d->adminUsername, d->adminPassword);
-
-    connect(DatabaseManager::singleton(), SIGNAL(documentRetrieved(bool,QString,QJsonDocument)), SLOT(updateSettingsFileStepRetrieveReply(bool,QString,QJsonDocument)));
-    DatabaseManager::singleton()->retrieveDocument("u_" + d->username.toLower(), "settings", DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::updateSettingsFileStepRetrieveReply(const bool& connectionSuccess, const QString& id, const QJsonDocument& document)
-{
-    Q_D(UserManager);
-
-    if(id != "settings") return;
-
-    DatabaseManager::singleton()->clearCredentials();
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(documentRetrieved(bool,QString,QJsonDocument)), this, SLOT(updateSettingsFileStepRetrieveReply(bool,QString,QJsonDocument)));
-
-    if(!connectionSuccess || document.object().contains("error"))
-    {
-        d->email = "";
-        d->username = "";
-        emit updateSettingsFileFailed("An error occurred. Please try again.");
-        return;
-    }
-
-    QJsonDocument updatedDocument = document;
-    JsonHelper::modifyValue(updatedDocument, "email", d->email);
-
-    connect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), SLOT(updateSettingsFileReply(bool,QString)));
-    DatabaseManager::singleton()->updateDocument("u_" + d->username.toLower(), "settings", updatedDocument.toJson(), DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::updateSettingsFileReply(const bool& success, const QString& id)
-{
-    Q_D(UserManager);
-
-    if(id != "settings") return;
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), this, SLOT(updateSettingsFileReply(bool,QString)));
-
-    if(!success)
-    {
-        d->email = "";
-        d->username = "";
-        emit updateSettingsFileFailed("An error occurred. Please try again.");
-        return;
-    }
-
-    emit updateSettingsFileSuccess();
-}
-
-void UserManager::updateDatabaseSecurity(const QString& username) const
-{
-    Q_D(const UserManager);
-
-    DatabaseManager::singleton()->setCredentials(d->adminUsername, d->adminPassword);
-
-    QJsonObject object;
-    object.insert("_id", QString("_security"));
-    object.insert("couchdb_auth_only", true);
-    QJsonArray membersNamesArray;
-    membersNamesArray.append(username);
-    QJsonObject members;
-    members.insert("names", membersNamesArray);
-    members.insert("roles", QJsonArray());
-    object.insert("members", members);
-    object.insert("admins", QJsonObject());
-    QJsonDocument document(object);
-    QByteArray json = document.toJson();
-
-    connect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), SLOT(updateDatabaseSecurityReply(bool,QString)));
-    DatabaseManager::singleton()->updateDocument("u_" + username.toLower(), "_security", json, DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::updateDatabaseSecurityReply(const bool& success, const QString& id)
-{
-    Q_D(UserManager);
-
-    if(id != "_security") return;
-
-    DatabaseManager::singleton()->clearCredentials();
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), this, SLOT(updateDatabaseSecurityReply(bool,QString)));
-
-    if(!success)
-    {
-        emit updateDatabaseSecurityFailed("An error occurred. Please try again.");
-        return;
-    }
-
-    emit updateDatabaseSecuritySuccess();
-}
-
-void UserManager::createEmailDocument(const QString &email, const QString &username)
-{
-    Q_D(UserManager);
-
-    DatabaseManager::singleton()->setCredentials(d->adminUsername, d->adminPassword);
-
-    d->email = email;
-    QJsonObject obj;
-    obj.insert("username", username);
-
-    QJsonDocument document(obj);
-    QByteArray documentBA = document.toJson();
-
-    connect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), SLOT(createEmailDocumentReply(bool,QString)));
-    DatabaseManager::singleton()->updateDocument("emails", d->email, documentBA, DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::createEmailDocumentReply(const bool &success, const QString &id)
-{
-    Q_D(UserManager);
-
-    if(id != d->email) return;
-
-    DatabaseManager::singleton()->clearCredentials();
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool, QString, QString)),
-               this, SLOT(createEmailDocumentReply(bool, QString)));
-
-    if(!success)
-    {
-        emit createEmailDocumentFailed("An error occurred. Please try again.");
-        return;
-    }
-
-    emit createEmailDocumentSuccess();
-}
-
 QString UserManager::generateActivationCode()
 {
     QString code;
@@ -483,32 +143,232 @@ QString UserManager::generateActivationCode()
     return code;
 }
 
-void UserManager::sendCodeByEmail(const QString &emailAddress, const QString &activationCode)
+void UserManager::createAccountVerification(const QString &username, const QString &email, const QString &code)
 {
     Q_D(UserManager);
 
-    if(!d->emailManager) d->emailManager = new EmailManager(this);
+    if(!d->networkManager) d->networkManager = new QNetworkAccessManager(this);
 
-    connect(d->emailManager, SIGNAL(sendEmailFinished(bool,QString)), SLOT(sendCodeByEmailReply(bool,QString)));
-    d->emailManager->setEmailData(d->beatwhaleEmail, d->beatwhaleEmailPassword, "BeatWhale Team", d->beatwhaleEmailServer, d->beatwhaleEmailPort, false);
-    d->emailManager->sendEmail(emailAddress, "", "BeatWhale Confirmation Code", "Cool, we are almost there!\n\n\nJust copy the code below and paste it into the application:\n\nCode: " +
-                               activationCode + "\n\n\n\nWe'll be waiting!\n-BeatWhale Team");
+    QUrl url(ApplicationManager::singleton()->beatwhaleAPIUrl() + "sendemailactivation.php?email=" + email.toLower() + "&username=" + username + "&code=" + code);
+    QNetworkReply *reply = d->networkManager->get(QNetworkRequest(url));
+    connect(reply, SIGNAL(finished()), SLOT(createAccountVerificationReply()));
 }
 
-void UserManager::sendCodeByEmailReply(const bool &success, const QString &message)
+void UserManager::createAccountVerificationReply()
 {
     Q_D(UserManager);
 
-    disconnect(d->emailManager, SIGNAL(sendEmailFinished(bool,QString)), this, SLOT(sendCodeByEmailReply(bool,QString)));
+    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+    if(!reply) return;
+
+    const QByteArray replyBA = reply->readAll();
+    QJsonDocument document = QJsonDocument::fromJson(replyBA);
+    QJsonObject obj = document.object();
+
+    bool success = obj.value("success").toBool();
+
+    if(success) emit createAccountVerificationSuccess();
+    else emit createAccountVerificationFailed(obj.value("message").toString("Problem connecting to BeatWhale API. Please try again."));
+
+    delete reply;
+}
+
+void UserManager::createAccount(const QString &username, const QString &password, const QString &email)
+{
+    Q_D(UserManager);
+
+    if(!d->networkManager) d->networkManager = new QNetworkAccessManager(this);
+
+    QString randomHex;
+    for(int i = 0; i < 16; i++)
+    {
+        int n = qrand() % 16;
+        randomHex.append(QString::number(n,16));
+    }
+
+    QByteArray salt = QByteArray(randomHex.toStdString().c_str()).toHex();
+    QString hash = QString(QCryptographicHash::hash((password.toStdString().c_str() + salt),QCryptographicHash::Sha1).toHex());
+
+    QUrl url(ApplicationManager::singleton()->beatwhaleAPIUrl() + "createaccount.php?email=" + email.toLower() + "&username=" + username + "&hash=" + hash + "&salt=" + salt);
+    QNetworkReply *reply = d->networkManager->get(QNetworkRequest(url));
+    connect(reply, SIGNAL(finished()), SLOT(createAccountReply()));
+}
+
+void UserManager::createAccountReply()
+{
+    Q_D(UserManager);
+
+    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+    if(!reply) return;
+
+    const QByteArray replyBA = reply->readAll();
+    QJsonDocument document = QJsonDocument::fromJson(replyBA);
+    QJsonObject obj = document.object();
+
+    bool success = obj.value("success").toBool();
 
     if(success)
     {
-        emit sendCodeByEmailSuccess();
+        d->localSettings.clear();
+        emit createAccountSuccess();
     }
     else
     {
-        emit sendCodeByEmailFailed("Failed to send email with code activation. Please try again.");
+        emit createAccountFailed(obj.value("message").toString("Problem connecting to BeatWhale API. Please try again."));
     }
+
+    delete reply;
+}
+
+void UserManager::deleteAccount()
+{
+    Q_D(UserManager);
+
+    if(!d->networkManager) d->networkManager = new QNetworkAccessManager(this);
+
+    QUrl url(ApplicationManager::singleton()->beatwhaleAPIUrl() + "deleteaccount.php?email=" + d->email.toLower() + "&username=" + d->username);
+    QNetworkReply *reply = d->networkManager->get(QNetworkRequest(url));
+    connect(reply, SIGNAL(finished()), SLOT(deleteAccountReply()));
+}
+
+void UserManager::deleteAccountReply()
+{
+    Q_D(UserManager);
+
+    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+    if(!reply) return;
+
+    const QByteArray replyBA = reply->readAll();
+    QJsonDocument document = QJsonDocument::fromJson(replyBA);
+    QJsonObject obj = document.object();
+
+    bool success = obj.value("success").toBool();
+
+    delete reply;
+
+    if(!success)
+    {
+        DatabaseManager::singleton()->startSession(d->username, d->password, DatabaseManager::ACCESSTYPE_REMOTE);
+        emit deleteAccountFailed(obj.value("message").toString("Problem connecting to BeatWhale API. Please try again."));
+        return;
+    }
+
+    d->localSettings.setValue("login/remember", false);
+    d->localSettings.remove("login/credentials");
+
+    stopListeningToChanges();
+
+    d->username = "";
+    d->password = "";
+    d->email = "";
+
+    emit deleteAccountSuccess();
+}
+
+void UserManager::forgotDetails(const QString& email)
+{
+    Q_D(UserManager);
+
+    if(!d->networkManager) d->networkManager = new QNetworkAccessManager(this);
+
+    d->newPassword = "";
+
+    QString randomHex;
+    for(int i = 0; i < 16; i++)
+    {
+        int n = qrand() % 16;
+        randomHex.append(QString::number(n,16));
+    }
+
+    for(int i = 0; i < 10; ++i)
+    {
+        d->newPassword += QString::number(rand() % 10);
+    }
+
+    QByteArray salt = QByteArray(randomHex.toStdString().c_str()).toHex();
+    QString hash = QString(QCryptographicHash::hash((d->newPassword.toStdString().c_str() + salt),QCryptographicHash::Sha1).toHex());
+
+    QUrl url(ApplicationManager::singleton()->beatwhaleAPIUrl() + "forgotdetails.php?email=" + email.toLower() + "&password=" + d->newPassword + "&hash=" + hash + "&salt=" + salt);
+    QNetworkReply *reply = d->networkManager->get(QNetworkRequest(url));
+    connect(reply, SIGNAL(finished()), SLOT(forgotDetailsReply()));
+}
+
+void UserManager::forgotDetailsReply()
+{
+    Q_D(UserManager);
+
+    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+    if(!reply) return;
+
+    const QByteArray replyBA = reply->readAll();
+    QJsonDocument document = QJsonDocument::fromJson(replyBA);
+    QJsonObject obj = document.object();
+
+    bool success = obj.value("success").toBool();
+
+    d->newPassword = "";
+    delete reply;
+
+    if(!success)
+    {
+        emit forgotDetailsFailed(obj.value("message").toString("Problem connecting to BeatWhale API. Please try again."));
+        return;
+    }
+
+    emit forgotDetailsSuccess();
+}
+
+void UserManager::changePassword(const QString &newPassword)
+{
+    Q_D(UserManager);
+
+    if(!d->networkManager) d->networkManager = new QNetworkAccessManager(this);
+
+    d->newPassword = newPassword;
+    DatabaseManager::singleton()->endSession(DatabaseManager::ACCESSTYPE_REMOTE);
+
+    QString randomHex;
+    for(int i = 0; i < 16; i++)
+    {
+        int n = qrand() % 16;
+        randomHex.append(QString::number(n,16));
+    }
+
+    QByteArray salt = QByteArray(randomHex.toStdString().c_str()).toHex();
+    QString hash = QString(QCryptographicHash::hash((d->newPassword.toStdString().c_str() + salt),QCryptographicHash::Sha1).toHex());
+
+    QUrl url(ApplicationManager::singleton()->beatwhaleAPIUrl() + "changepassword.php?username=" + d->username + "&hash=" + hash + "&salt=" + salt);
+    QNetworkReply *reply = d->networkManager->get(QNetworkRequest(url));
+    connect(reply, SIGNAL(finished()), SLOT(changePasswordReply()));
+}
+
+void UserManager::changePasswordReply()
+{
+    Q_D(UserManager);
+
+    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+    if(!reply) return;
+
+    const QByteArray replyBA = reply->readAll();
+    QJsonDocument document = QJsonDocument::fromJson(replyBA);
+    QJsonObject obj = document.object();
+
+    bool success = obj.value("success").toBool();
+
+    delete reply;
+
+    if(!success)
+    {
+        d->newPassword = "";
+        DatabaseManager::singleton()->startSession(d->username, d->password, DatabaseManager::ACCESSTYPE_REMOTE);
+        emit changePasswordFailed(obj.value("message").toString("Problem connecting to BeatWhale API. Please try again."));
+        return;
+    }
+
+    d->password = d->newPassword;
+    d->newPassword = "";
+    DatabaseManager::singleton()->startSession(d->username, d->password, DatabaseManager::ACCESSTYPE_REMOTE);
+    emit changePasswordSuccess();
 }
 
 void UserManager::login(const QString& username, const QString& password)
@@ -546,16 +406,44 @@ void UserManager::loginReply(const bool &success, const bool& authProblem)
     connect(DatabaseManager::singleton(), SIGNAL(documentRetrieved(bool,QString,QJsonDocument)), SLOT(documentSettingsRetrieved(bool,QString,QJsonDocument)));
     DatabaseManager::singleton()->retrieveDocument("u_" + d->username.toLower(), "settings", DatabaseManager::ACCESSTYPE_REMOTE);
 
-    QTimer::singleShot(10000, ApplicationManager::singleton(), SLOT(checkForUpdates()));
+    //Check if new version exists
+    QTimer::singleShot(6000, ApplicationManager::singleton(), SLOT(checkForUpdates()));
+
+    //Ready to rock!
     emit loginSuccess();
+
+    QFileInfo info(d->localSettings.fileName());
+    d->queueFile = new QFile(info.path() + "/" + d->username + "_queue.txt");
+
+    if(d->queueFile->open(QFile::ReadWrite))
+    {
+        d->queueFileStream.setDevice(d->queueFile);
+
+        while(!d->queueFileStream.atEnd())
+        {
+            QString line = d->queueFileStream.readLine();
+            d->queueStringList.append(line);
+
+            QStringList itemData = line.split("#!#!");
+
+            if(itemData.count() != 5) continue;
+
+            VideoItem item;
+            item.setID(itemData[0]);
+            item.setTitle(itemData[1]);
+            item.setSubTitle(itemData[2]);
+            item.setThumbnail(itemData[3]);
+            item.setDuration(itemData[4]);
+
+            emit queueItemAdded(&item);
+        }
+    }
 }
 
 void UserManager::logout()
 {
     Q_D(UserManager);
 
-    qDebug() << "LOGOUT";
-
     stopListeningToChanges();
 
     d->username = "";
@@ -563,451 +451,60 @@ void UserManager::logout()
 
     DatabaseManager::singleton()->endSession(DatabaseManager::ACCESSTYPE_REMOTE);
 
+    d->queueFile->close();
+    delete d->queueFile;
+
     d->firstTime = true;
 }
 
-void UserManager::forgotDetails(const QString &email)
+void UserManager::removedFromQueue(const int &index)
 {
     Q_D(UserManager);
 
-    d->email = email;
-    forgotDetailsStepRetrieveEmailDocument();
-}
+    d->queueFileStream.seek(0);
+    d->queueFile->resize(0);
 
-void UserManager::forgotDetailsStepRetrieveEmailDocument()
-{
-    Q_D(UserManager);
+    d->queueStringList.removeAt(index);
 
-    DatabaseManager::singleton()->setCredentials(d->adminUsername, d->adminPassword);
-
-    connect(DatabaseManager::singleton(), SIGNAL(documentRetrieved(bool,QString,QJsonDocument)),
-            SLOT(forgotDetailsStepRetrieveEmailDocumentReply(bool,QString,QJsonDocument)));
-    DatabaseManager::singleton()->retrieveDocument("emails", d->email, DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::forgotDetailsStepRetrieveEmailDocumentReply(const bool &success, const QString &id, const QJsonDocument &document)
-{
-    Q_D(UserManager);
-
-    if(id != d->email) return;
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(documentRetrieved(bool,QString,QJsonDocument)), this,
-               SLOT(forgotDetailsStepRetrieveEmailDocumentReply(bool,QString,QJsonDocument)));
-
-
-    if(!success)
+    foreach(QString string, d->queueStringList)
     {
-        DatabaseManager::singleton()->clearCredentials();
-        d->email = "";
-        emit forgotDetailsFailed("Problem connecting to BeatWhale. Please try again.");
-        return;
-    }
-
-    d->username = document.object().value("username").toString();
-
-    if(document.object().contains("error") || d->username.isEmpty())
-    {
-        DatabaseManager::singleton()->clearCredentials();
-        d->email = "";
-        if(document.object().value("error").toString() == "not_found")
-        {
-            emit forgotDetailsFailed("This email is not linked to any BeatWhale account.");
-        }
-        else
-        {
-            emit forgotDetailsFailed("Problem with BeatWhale database. Please try again later.");
-        }
-        return;
-    }
-
-    forgotDetailsStepUserDocumentRev();
-}
-
-void UserManager::forgotDetailsStepUserDocumentRev()
-{
-    Q_D(UserManager);
-
-    connect(DatabaseManager::singleton(), SIGNAL(revisionRetrieved(bool,QString,QString)), SLOT(forgotDetailsStepUserDocumentRevReply(bool,QString,QString)));
-    DatabaseManager::singleton()->retrieveRevision("_users", "org.couchdb.user:" + d->username, DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::forgotDetailsStepUserDocumentRevReply(const bool &success, const QString& id, const QString& rev)
-{
-    Q_D(UserManager);
-
-    if(id != "org.couchdb.user:" + d->username) return;
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(revisionRetrieved(bool,QString,QString)), this, SLOT(forgotDetailsStepUserDocumentRevReply(bool,QString,QString)));
-
-    if(!success)
-    {
-        DatabaseManager::singleton()->clearCredentials();
-        d->email = "";
-        d->username = "";
-        emit forgotDetailsFailed("Problem connecting to BeatWhale. Please try again.");
-        return;
-    }
-
-    forgotDetailsStepResetPassword(rev);
-}
-
-void UserManager::forgotDetailsStepResetPassword(const QString& rev)
-{
-    Q_D(UserManager);
-
-    d->newPassword = "";
-
-    QString randomHex;
-    for(int i = 0; i < 16; i++)
-    {
-        int n = qrand() % 16;
-        randomHex.append(QString::number(n,16));
-    }
-
-    for(int i = 0; i < 10; ++i)
-    {
-        d->newPassword += QString::number(rand() % 10);
-    }
-
-    QByteArray salt = QByteArray(randomHex.toStdString().c_str()).toHex();
-    QString hash = QString(QCryptographicHash::hash((d->newPassword.toStdString().c_str() + salt),QCryptographicHash::Sha1).toHex());
-
-    QJsonObject obj;
-    obj.insert("_rev", rev);
-    obj.insert("name", d->username);
-    obj.insert("password_scheme", QString("simple"));
-    obj.insert("type", QString("user"));
-    obj.insert("password_sha", hash);
-    obj.insert("salt", QString(salt));
-
-    QJsonDocument document(obj);
-    QByteArray documentBA = document.toJson();
-
-    connect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), SLOT(forgotDetailsStepResetPasswordReply(bool,QString)));
-    DatabaseManager::singleton()->updateDocument("_users", "org.couchdb.user:" + d->username, documentBA, DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::forgotDetailsStepResetPasswordReply(const bool& success, const QString &id)
-{
-    Q_D(UserManager);
-
-    if("org.couchdb.user:" + d->username != id) return;
-
-    DatabaseManager::singleton()->clearCredentials();
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool, QString, QString)),
-               this, SLOT(forgotDetailsStepResetPasswordReply(bool, QString)));
-
-    if(!success)
-    {
-        d->newPassword = "";
-        d->email = "";
-        d->username = "";
-        emit forgotDetailsFailed("Problem connecting to BeatWhale. Please try again.");
-        return;
-    }
-
-    forgotDetailsStepSendEmail();
-}
-
-void UserManager::forgotDetailsStepSendEmail()
-{
-    Q_D(UserManager);
-
-    //Send email
-    if(!d->emailManager) d->emailManager = new EmailManager(this);
-
-    connect(d->emailManager, SIGNAL(sendEmailFinished(bool,QString)), SLOT(forgotDetailsStepSendEmailReply(bool,QString)));
-    d->emailManager->setEmailData(d->beatwhaleEmail, d->beatwhaleEmailPassword, "BeatWhale Team", d->beatwhaleEmailServer, d->beatwhaleEmailPort, false);
-    d->emailManager->sendEmail(d->email, "", "BeatWhale Password Reset", "Here are your credentials:\n\n\nUsername: " +
-                               d->username + "\nNew password: " + d->newPassword + "\n\n\nNow it's time to go back in!\n-BeatWhale Team");
-}
-
-void UserManager::forgotDetailsStepSendEmailReply(const bool &success, const QString &message)
-{
-    Q_D(UserManager);
-
-    disconnect(d->emailManager, SIGNAL(sendEmailFinished(bool,QString)), this, SLOT(forgotDetailsStepSendEmailReply(bool,QString)));
-
-    if(success)
-    {
-        emit forgotDetailsSuccess();
-    }
-    else
-    {
-        emit forgotDetailsFailed("Error sending email. Please try again.");
+        d->queueFileStream << string << endl;
     }
 }
 
-void UserManager::changePassword(const QString &newPassword)
+void UserManager::addedToQueue(const QString &id, const QString &title, const QString &subTitle, const QString &thumbnail, const QString &duration)
+{
+    Q_D(UserManager);
+    QString itemString(id + "#!#!" + title + "#!#!" + subTitle + "#!#!" + thumbnail + "#!#!" + duration);
+    d->queueStringList.append(itemString);
+    d->queueFileStream << itemString << endl;
+}
+
+void UserManager::queueCleared()
+{
+    Q_D(UserManager);
+    d->queueFileStream.seek(0);
+    d->queueFile->resize(0);
+    d->queueStringList.clear();
+}
+
+qreal UserManager::volume()
 {
     Q_D(UserManager);
 
-    d->newPassword = newPassword;
-    changePasswordStepEndSession();
-}
-
-void UserManager::changePasswordStepEndSession()
-{
-    connect(DatabaseManager::singleton(), SIGNAL(sessionEnded(bool)), SLOT(changePasswordStepEndSessionReply(bool)));
-    DatabaseManager::singleton()->endSession(DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::changePasswordStepEndSessionReply(const bool &success)
-{
-    disconnect(DatabaseManager::singleton(), SIGNAL(sessionEnded(bool)), this, SLOT(changePasswordStepEndSessionReply(bool)));
-
-    if(!success)
-    {
-        emit passwordChanged(false);
-        return;
-    }
-
-    changePasswordStepUserDocumentRev();
-}
-
-void UserManager::changePasswordStepUserDocumentRev()
-{
-    Q_D(UserManager);
-
-    DatabaseManager::singleton()->setCredentials(d->adminUsername, d->adminPassword);
-
-    connect(DatabaseManager::singleton(), SIGNAL(revisionRetrieved(bool,QString,QString)), SLOT(changePasswordStepUserDocumentRevReply(bool,QString,QString)));
-    DatabaseManager::singleton()->retrieveRevision("_users", "org.couchdb.user:" + d->username, DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::changePasswordStepUserDocumentRevReply(const bool &success, const QString& id, const QString& rev)
-{
-    Q_D(UserManager);
-
-    if(id != "org.couchdb.user:" + d->username) return;
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(revisionRetrieved(bool,QString,QString)), this, SLOT(changePasswordStepUserDocumentRevReply(bool,QString,QString)));
-
-    if(!success)
-    {
-        DatabaseManager::singleton()->clearCredentials();
-        d->newPassword = "";
-        DatabaseManager::singleton()->startSession(d->username, d->password, DatabaseManager::ACCESSTYPE_REMOTE);
-        emit passwordChanged(false);
-        return;
-    }
-
-    changePasswordStepUpdateUserDocument(rev);
-}
-
-void UserManager::changePasswordStepUpdateUserDocument(const QString& rev)
-{
-    Q_D(UserManager);
-
-    QString randomHex;
-    for(int i = 0; i < 16; i++)
-    {
-        int n = qrand() % 16;
-        randomHex.append(QString::number(n,16));
-    }
-
-    QByteArray salt = QByteArray(randomHex.toStdString().c_str()).toHex();
-    QString hash = QString(QCryptographicHash::hash((d->newPassword.toStdString().c_str() + salt),QCryptographicHash::Sha1).toHex());
-
-    QJsonObject obj;
-    obj.insert("_rev", rev);
-    obj.insert("name", d->username);
-    obj.insert("password_scheme", QString("simple"));
-    obj.insert("type", QString("user"));
-    obj.insert("password_sha", hash);
-    obj.insert("salt", QString(salt));
-
-    QJsonDocument document(obj);
-    QByteArray documentBA = document.toJson();
-
-    connect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), SLOT(changePasswordStepUpdateUserDocumentReply(bool,QString)));
-    DatabaseManager::singleton()->updateDocument("_users", "org.couchdb.user:" + d->username, documentBA, DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::changePasswordStepUpdateUserDocumentReply(const bool& success, const QString &id)
-{
-    Q_D(UserManager);
-
-    if("org.couchdb.user:" + d->username != id) return;
-
-    DatabaseManager::singleton()->clearCredentials();
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool, QString, QString)),
-               this, SLOT(changePasswordStepUpdateUserDocumentReply(bool, QString)));
-
-    if(!success)
-    {
-        d->newPassword = "";
-        DatabaseManager::singleton()->startSession(d->username, d->password, DatabaseManager::ACCESSTYPE_REMOTE);
-        emit passwordChanged(false);
-        return;
-    }
-
-    d->password = d->newPassword;
-    DatabaseManager::singleton()->startSession(d->username, d->password, DatabaseManager::ACCESSTYPE_REMOTE);
-
-    emit passwordChanged(true);
+    d->localSettings.beginGroup(d->username + "-general");
+    qreal volume = d->localSettings.value("volume", -1).toDouble();
+    d->localSettings.endGroup();
+    return volume >= 0 ? volume : 1;
 }
 
 void UserManager::setVolume(const qreal &volume)
 {
     Q_D(UserManager);
 
-    qDebug() << "TODO send settings document with new volume value" << volume;
-}
-
-void UserManager::deleteAccount()
-{
-    deleteAccountStepEndSession();
-}
-
-void UserManager::deleteAccountStepEndSession()
-{
-    connect(DatabaseManager::singleton(), SIGNAL(sessionEnded(bool)), SLOT(deleteAccountStepEndSessionReply(bool)));
-    DatabaseManager::singleton()->endSession(DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::deleteAccountStepEndSessionReply(const bool &success)
-{
-    disconnect(DatabaseManager::singleton(), SIGNAL(sessionEnded(bool)), this, SLOT(deleteAccountStepEndSessionReply(bool)));
-
-    if(!success)
-    {
-        emit accountDeleted(false);
-        return;
-    }
-
-    deleteAccountStepUserDocumentRev();
-}
-
-void UserManager::deleteAccountStepUserDocumentRev()
-{
-    Q_D(UserManager);
-
-    DatabaseManager::singleton()->setCredentials(d->adminUsername, d->adminPassword);
-
-    connect(DatabaseManager::singleton(), SIGNAL(revisionRetrieved(bool,QString,QString)), SLOT(deleteAccountStepUserDocumentRevReply(bool,QString,QString)));
-    DatabaseManager::singleton()->retrieveRevision("_users", "org.couchdb.user:" + d->username, DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::deleteAccountStepUserDocumentRevReply(const bool &success, const QString& id, const QString& rev)
-{
-    Q_D(UserManager);
-
-    if(id != "org.couchdb.user:" + d->username) return;
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(revisionRetrieved(bool,QString,QString)), this, SLOT(deleteAccountStepUserDocumentRevReply(bool,QString,QString)));
-
-    if(!success)
-    {
-        DatabaseManager::singleton()->clearCredentials();
-        DatabaseManager::singleton()->startSession(d->username, d->password, DatabaseManager::ACCESSTYPE_REMOTE);
-        emit accountDeleted(false);
-        return;
-    }
-
-    deleteAccountStepDeleteUser(rev);
-}
-
-void UserManager::deleteAccountStepDeleteUser(const QString& userDocumentRev)
-{
-    Q_D(UserManager);
-
-    connect(DatabaseManager::singleton(), SIGNAL(documentDeleted(bool,QString)), SLOT(deleteAccountStepDeleteUserReply(bool,QString)));
-    DatabaseManager::singleton()->deleteDocument("_users", "org.couchdb.user:" + d->username, userDocumentRev, DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::deleteAccountStepDeleteUserReply(const bool &success, const QString& id)
-{
-    Q_D(UserManager);
-
-    if(id != "org.couchdb.user:" + d->username) return;
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(documentDeleted(bool,QString)), this, SLOT(deleteAccountStepDeleteUserReply(bool,QString)));
-
-    if(!success)
-    {
-        DatabaseManager::singleton()->clearCredentials();
-        emit accountDeleted(false);
-        DatabaseManager::singleton()->startSession(d->username, d->password, DatabaseManager::ACCESSTYPE_REMOTE);
-        return;
-    }
-
-    deleteAccountStepDeleteDatabase();
-}
-
-void UserManager::deleteAccountStepDeleteDatabase()
-{
-    Q_D(UserManager);
-
-    connect(DatabaseManager::singleton(), SIGNAL(databaseDeleted(bool)), SLOT(deleteAccountStepDeleteDatabaseReply()));
-    DatabaseManager::singleton()->deleteDatabase("u_" + d->username.toLower(), DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::deleteAccountStepDeleteDatabaseReply()
-{
-    Q_D(UserManager);
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(databaseDeleted(bool)), this, SLOT(deleteAccountStepDeleteDatabaseReply()));
-
-    deleteAccountStepEmailDocumentRev();
-}
-
-void UserManager::deleteAccountStepEmailDocumentRev()
-{
-    Q_D(UserManager);
-
-    connect(DatabaseManager::singleton(), SIGNAL(revisionRetrieved(bool,QString,QString)), SLOT(deleteAccountStepEmailDocumentRevReply(bool,QString,QString)));
-    DatabaseManager::singleton()->retrieveRevision("emails", d->email, DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::deleteAccountStepEmailDocumentRevReply(const bool &success, const QString& id, const QString& rev)
-{
-    Q_D(UserManager);
-
-    if(id != d->email) return;
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(revisionRetrieved(bool,QString,QString)), this, SLOT(deleteAccountStepEmailDocumentRevReply(bool,QString,QString)));
-
-    if(!success)
-    {
-        DatabaseManager::singleton()->clearCredentials();
-        emit accountDeleted(true);
-        return;
-    }
-
-    deleteAccountStepDeleteEmail(rev);
-}
-
-void UserManager::deleteAccountStepDeleteEmail(const QString& emailDocumentRev)
-{
-    Q_D(UserManager);
-
-    connect(DatabaseManager::singleton(), SIGNAL(documentDeleted(bool,QString)), SLOT(deleteAccountStepDeleteEmailReply(bool,QString)));
-    DatabaseManager::singleton()->deleteDocument("emails", d->email, emailDocumentRev, DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::deleteAccountStepDeleteEmailReply(const bool &success, const QString& id)
-{
-    Q_D(UserManager);
-
-    if(id != d->email) return;
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(documentDeleted(bool,QString)), this, SLOT(deleteAccountStepDeleteEmailReply(bool,QString)));
-
-    DatabaseManager::singleton()->clearCredentials();
-
-    d->localSettings.setValue("login/remember", false);
-    d->localSettings.remove("login/credentials");
-
-    stopListeningToChanges();
-
-    d->username = "";
-    d->password = "";
-    d->email = "";
-
-    emit accountDeleted(true);
+    d->localSettings.beginGroup(d->username + "-general");
+    d->localSettings.setValue("volume", volume);
+    d->localSettings.endGroup();
 }
 
 void UserManager::startListeningToChanges()
@@ -1128,7 +625,7 @@ void UserManager::documentUpdate(const bool &success, const QString &id, const Q
                 {
                     QJsonObject itemObj = favoritesObj.value(key).toObject();
                     PlaylistsManager::singleton()->addFavorite(key, itemObj.value("title").toString(), itemObj.value("subtitle").toString(), itemObj.value("thumbnail").toString(),
-                                                                  itemObj.value("duration").toString(), itemObj.value("timestamp").toString());
+                                                               itemObj.value("duration").toString(), itemObj.value("timestamp").toString());
                 }
             }
             else

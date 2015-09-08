@@ -20,6 +20,9 @@ Rectangle {
     signal dragVideosStarted(string dragInfo)
     signal dragVideosFinished()
 
+    signal showTooltip(string text, real x, real y)
+    signal hideTooltip()
+
     function checkLoadMore() {
         if(searchRequested || nextPageToken.length == 0 || pageNumber > 5) return;
 
@@ -58,7 +61,7 @@ Rectangle {
         id: tagsModel
 
         ListElement {
-            tag: "VIDEO CLIP"
+            tag: "MUSIC VIDEO"
         }
 
         ListElement {
@@ -66,7 +69,7 @@ Rectangle {
         }
 
         ListElement {
-            tag: "CLASSIC"
+            tag: "CLASSICAL"
         }
 
         ListElement {
@@ -98,7 +101,15 @@ Rectangle {
         }
 
         ListElement {
+            tag: "ELECTRO"
+        }
+
+        ListElement {
             tag: "MINIMAL"
+        }
+
+        ListElement {
+            tag: "ALTERNATIVE"
         }
 
         ListElement {
@@ -302,14 +313,12 @@ Rectangle {
                     }
 
                     onShowTooltip: {
-                        tooltip.displayText = text
-                        tooltip.x = thumbnailDelegate.x + x
-                        tooltip.y = thumbnailDelegate.y + y - resultsGrid.contentY
-                        tooltip.opacity = 1
+                        rootRect.showTooltip(text, x + thumbnailDelegate.x + resultsGridHolder.x + mainPanel.x,
+                                             y + thumbnailDelegate.y + resultsGridHolder.y - resultsGrid.contentY)
                     }
 
                     onHideTooltip: {
-                        tooltip.opacity = 0
+                        rootRect.hideTooltip()
                     }
 
                     onSelectionRequest: {
@@ -406,17 +415,6 @@ Rectangle {
                 }
             }
 
-            BWTooltip {
-                id: tooltip
-                visible: opacity != 0
-                opacity: 0
-
-                onXChanged: {
-                    tooltip.width = mainPanel.width - (resultsGridHolder.x + x + 20)
-                    tooltip.height = mainPanel.height - (resultsGridHolder.y + y + 20)
-                }
-            }
-
             TOPScrollBar {
                 flickable: resultsGrid
             }
@@ -439,13 +437,13 @@ Rectangle {
                 nextPageToken = ""
             }
 
-            for(var key in obj) {
+            for(var key in obj["items"]) {
                 if(key === "nextPageToken") continue
 
-                var videoID = key
-                var title = obj[key]["title"]
-                var videoThumbnailUrl = obj[key]["thumbnail"]
-                var videoDuration = obj[key]["duration"]
+                var videoID = obj["items"][key]["id"]
+                var title = obj["items"][key]["title"]
+                var videoThumbnailUrl = obj["items"][key]["thumbnail"]
+                var videoDuration = obj["items"][key]["duration"]
 
                 var videoTitle;
                 var videoSubTitle;

@@ -1,4 +1,5 @@
 import QtQuick 2.0
+import BeatWhaleAPI 1.0
 import "qrc:/components/qml/"
 
 Rectangle {
@@ -12,6 +13,9 @@ Rectangle {
     signal removeVideoRequested(int index)
     signal dragVideosStarted(string dragInfo)
     signal dragVideosFinished()
+
+    signal showTooltip(string text, real x, real y)
+    signal hideTooltip()
 
     Rectangle {
         id: mainPanel
@@ -117,14 +121,12 @@ Rectangle {
                     }
 
                     onShowTooltip: {
-                        tooltip.displayText = text
-                        tooltip.x = thumbnailDelegate.x + x
-                        tooltip.y = thumbnailDelegate.y + y - resultsGrid.contentY + resultsGrid.topMarginValue
-                        tooltip.opacity = 1
+                        rootRect.showTooltip(text, x + thumbnailDelegate.x + resultsGridHolder.x,
+                                             y + thumbnailDelegate.y + resultsGridHolder.y - resultsGrid.contentY + resultsGrid.topMarginValue)
                     }
 
                     onHideTooltip: {
-                        tooltip.opacity = 0
+                        rootRect.hideTooltip()
                     }
 
                     onSelectionRequest: {
@@ -226,17 +228,6 @@ Rectangle {
                 }
             }
 
-            BWTooltip {
-                id: tooltip
-                visible: opacity != 0
-                opacity: 0
-
-                onXChanged: {
-                    tooltip.width = mainPanel.width - (resultsGridHolder.x + x + 20)
-                    tooltip.height = mainPanel.height - (resultsGridHolder.y + y + 20)
-                }
-            }
-
             TOPScrollBar {
                 flickable: resultsGrid
             }
@@ -292,6 +283,7 @@ Rectangle {
             onClicked: {
                 resultsGrid.videosSelected = []
                 playingModel.clear()
+                UserManager.queueCleared()
             }
         }
     }

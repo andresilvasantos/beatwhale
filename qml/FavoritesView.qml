@@ -15,6 +15,9 @@ Rectangle {
     signal dragVideosStarted(string dragInfo)
     signal dragVideosFinished()
 
+    signal showTooltip(string text, real x, real y)
+    signal hideTooltip()
+
     function populateModel() {
         resultsGrid.videosSelected = []
 
@@ -26,6 +29,8 @@ Rectangle {
         }
 
         favoritesModel.quick_sort()
+
+        if(searchText.text.length) populateFilterModel()
     }
 
     function populateFilterModel() {
@@ -138,14 +143,12 @@ Rectangle {
                     }
 
                     onShowTooltip: {
-                        tooltip.displayText = text
-                        tooltip.x = thumbnailDelegate.x + x
-                        tooltip.y = thumbnailDelegate.y + y - resultsGrid.contentY + resultsGrid.topMarginValue
-                        tooltip.opacity = 1
+                        rootRect.showTooltip(text, x + thumbnailDelegate.x + resultsGridHolder.x,
+                                             y + thumbnailDelegate.y + resultsGridHolder.y - resultsGrid.contentY + resultsGrid.topMarginValue)
                     }
 
                     onHideTooltip: {
-                        tooltip.opacity = 0
+                        rootRect.hideTooltip()
                     }
 
                     onSelectionRequest: {
@@ -246,17 +249,6 @@ Rectangle {
                         resultsGrid.forceActiveFocus()
                         mouse.accepted = false
                     }
-                }
-            }
-
-            BWTooltip {
-                id: tooltip
-                visible: opacity != 0
-                opacity: 0
-
-                onXChanged: {
-                    tooltip.width = mainPanel.width - (resultsGridHolder.x + x + 20)
-                    tooltip.height = mainPanel.height - (resultsGridHolder.y + y + 20)
                 }
             }
 

@@ -299,6 +299,23 @@ Playlist *PlaylistsManager::playlist(const QString &name) const
     return 0;
 }
 
+QStringList PlaylistsManager::itemPlaylists(const QString &id, const QString& excludingPlaylistName) const
+{
+    Q_D(const PlaylistsManager);
+
+    QStringList playlists;
+    foreach(Playlist *playlist, d->playlists)
+    {
+        if(playlist->name() == excludingPlaylistName) continue;
+
+        if(playlist->containsItem(id))
+        {
+            playlists.append(playlist->name());
+        }
+    }
+    return playlists;
+}
+
 void PlaylistsManager::playlistNameChanged(const QString& name, const QString &oldName)
 {
     Q_D(PlaylistsManager);

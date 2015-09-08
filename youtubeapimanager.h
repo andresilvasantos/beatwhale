@@ -18,10 +18,10 @@ class YoutubeAPIManager : public QObject
 public:
     enum OrderFilter
     {
+        ORDER_VIEWCOUNT,
         ORDER_RELEVANCE,
         ORDER_DATE,
-        ORDER_RATING,
-        ORDER_VIEWCOUNT
+        ORDER_RATING
     };
 
     enum DurationFilter
@@ -34,6 +34,8 @@ public:
 
     static YoutubeAPIManager* singleton();
     static void declareQML();
+
+    void setAPIKey(const QString& key);
 
     void shutdown();
 

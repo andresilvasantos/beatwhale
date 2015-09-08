@@ -55,4 +55,8 @@ ListModel {
     function quick_sort() {
         qsort(0,count)
     }
+
+    function quick_sort_starting_at(begin) {
+        qsort(begin,count)
+    }
 }
