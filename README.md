@@ -1,9 +1,7 @@
 # BeatWhale
 
 
-There are lots of missing dependecies. Give me a few days to update all of it.
-
-
+Using youtube-dl (https://github.com/rg3/youtube-dl) for youtube video url extraction
 
 Website: http://beatwhale.com/
 
