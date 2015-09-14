@@ -5,6 +5,10 @@ ROOT_DIR = ../..
 macx {
     CONFIG+= app_bundle
     CONFIG += c++11
+} win32 {
+    CONFIG += c++11
+} unix {
+    CONFIG += c++11
 }
 
 CONFIG(debug, debug|release): DESTDIR = $${ROOT_DIR}/Output/debug
