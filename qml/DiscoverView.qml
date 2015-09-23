@@ -14,14 +14,12 @@ Rectangle {
     property string nextPageToken
     property int pageNumber: 0
     property bool searchRequested: false
+    property bool menuOpened: false
 
     signal playVideoAndAddToQueue(string id, string title, string subtitle, string thumbnail, string duration)
     signal addVideoToPlayQueue(string id, string title, string subtitle, string thumbnail, string duration)
     signal dragVideosStarted(string dragInfo)
     signal dragVideosFinished()
-
-    signal showTooltip(string text, real x, real y)
-    signal hideTooltip()
 
     function checkLoadMore() {
         if(searchRequested || nextPageToken.length == 0 || pageNumber > 5) return;
@@ -57,111 +55,41 @@ Rectangle {
         YoutubeAPI.search(searchString)
     }
 
-    ListModel {
+    TOPListModel {
         id: tagsModel
+        sortColumnName: "tag"
 
-        ListElement {
-            tag: "MUSIC VIDEO"
-        }
+        Component.onCompleted: {
+            tagsModel.append({"tag": "MUSIC VIDEO"})
+            tagsModel.append({"tag": "DUBSTEP"})
+            tagsModel.append({"tag": "CLASSICAL"})
+            tagsModel.append({"tag": "ROCK"})
+            tagsModel.append({"tag": "HOUSE"})
+            tagsModel.append({"tag": "SAMBA"})
+            tagsModel.append({"tag": "FLUTE"})
+            tagsModel.append({"tag": "ACOUSTIC"})
+            tagsModel.append({"tag": "GUITAR"})
+            tagsModel.append({"tag": "ELECTRONIC"})
+            tagsModel.append({"tag": "ELECTRO"})
+            tagsModel.append({"tag": "MINIMAL"})
+            tagsModel.append({"tag": "ALTERNATIVE"})
+            tagsModel.append({"tag": "PIANO"})
+            tagsModel.append({"tag": "TECHNO"})
+            tagsModel.append({"tag": "SOUNDTRACK"})
+            tagsModel.append({"tag": "TANGO"})
+            tagsModel.append({"tag": "DEEP"})
+            tagsModel.append({"tag": "HIPSTER"})
+            tagsModel.append({"tag": "EMOTIONAL"})
+            tagsModel.append({"tag": "CHILL-OUT"})
+            tagsModel.append({"tag": "REGGAE"})
+            tagsModel.append({"tag": "TRIP HOP"})
+            tagsModel.append({"tag": "HIP HOP"})
+            tagsModel.append({"tag": "INDIE"})
+            tagsModel.append({"tag": "SINGER"})
+            tagsModel.append({"tag": "METAL"})
+            tagsModel.append({"tag": "HEAVY"})
 
-        ListElement {
-            tag: "DUBSTEP"
-        }
-
-        ListElement {
-            tag: "CLASSICAL"
-        }
-
-        ListElement {
-            tag: "ROCK"
-        }
-
-        ListElement {
-            tag: "HOUSE"
-        }
-
-        ListElement {
-            tag: "SAMBA"
-        }
-
-        ListElement {
-            tag: "FLUTE"
-        }
-
-        ListElement {
-            tag: "ACOUSTIC"
-        }
-
-        ListElement {
-            tag: "GUITAR"
-        }
-
-        ListElement {
-            tag: "ELECTRONIC"
-        }
-
-        ListElement {
-            tag: "ELECTRO"
-        }
-
-        ListElement {
-            tag: "MINIMAL"
-        }
-
-        ListElement {
-            tag: "ALTERNATIVE"
-        }
-
-        ListElement {
-            tag: "PIANO"
-        }
-
-        ListElement {
-            tag: "TECHNO"
-        }
-
-        ListElement {
-            tag: "SOUNDTRACK"
-        }
-
-        ListElement {
-            tag: "TANGO"
-        }
-
-        ListElement {
-            tag: "DEEP"
-        }
-
-        ListElement {
-            tag: "HIPSTER"
-        }
-
-        ListElement {
-            tag: "EMOTIONAL"
-        }
-
-        ListElement {
-            tag: "CHILL-OUT"
-        }
-
-        ListElement {
-            tag: "REGGAE"
-        }
-
-        ListElement {
-            tag: "TRIP HOP"
-        }
-
-        ListElement {
-            tag: "HIP HOP"
-        }
-
-        ListElement {
-            tag: "INDIE"
-        }
-
-        ListElement {
-            tag: "SINGER"
+            tagsModel.quick_sort()
         }
     }
 
@@ -173,7 +101,14 @@ Rectangle {
         id: tagsHolder
         color: "#c5c5c5"
         width: 150
-        height: parent.height
+
+        anchors {
+            top: parent.top
+            bottom: parent.bottom
+            topMargin: topMarginValue
+        }
+
+        property int topMarginValue: topBar.height
 
         ListView {
             id: tagsList
@@ -210,10 +145,9 @@ Rectangle {
                 }
 
                 Component.onCompleted: {
-                    //Always select videoclip first
-                    if(index == 0) {
+                    if(tag.toLowerCase() == "music video") {
                         checked = true
-                        tagChecked(checked, 0)
+                        tagChecked(checked, index)
                     }
                 }
             }
@@ -226,15 +160,27 @@ Rectangle {
     Rectangle {
         id: mainPanel
         color: "#20e7ebee"
-        //width: parent.width
         height: parent.height
+        clip: true
 
         anchors {
             left: tagsHolder.right
             right: parent.right
         }
 
-        clip: true
+        Image {
+            source: "qrc:/images/backgroundPattern"
+            fillMode: Image.PreserveAspectCrop
+            opacity: searchModel.count ? 0 : .1
+            visible: opacity != 0
+            asynchronous: true
+            anchors.fill: parent
+
+            Behavior on opacity {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+            }
+        }
+
 
         Text {
             id: informativeText
@@ -277,7 +223,13 @@ Rectangle {
                 cellHeight: cellSize
                 cacheBuffer: 400
 
+                anchors {
+                    fill: parent
+                    topMargin: topMarginValue
+                }
+
                 property int cellSize: 200
+                property int topMarginValue: topBar.height
                 property var videosSelected: new Array
 
                 contentWidth: width
@@ -310,15 +262,6 @@ Rectangle {
 
                     onAddVideo: {
                         addVideoToPlayQueue(id, title, subtitle, thumbnail, duration)
-                    }
-
-                    onShowTooltip: {
-                        rootRect.showTooltip(text, x + thumbnailDelegate.x + resultsGridHolder.x + mainPanel.x,
-                                             y + thumbnailDelegate.y + resultsGridHolder.y - resultsGrid.contentY)
-                    }
-
-                    onHideTooltip: {
-                        rootRect.hideTooltip()
                     }
 
                     onSelectionRequest: {
@@ -418,6 +361,155 @@ Rectangle {
             TOPScrollBar {
                 flickable: resultsGrid
             }
+        }
+    }
+
+    Rectangle {
+        id: topBar
+        width: parent.width
+        height: resultsGrid.videosSelected.length ? 45 : 0
+        color: "#333333"
+        visible: height != 0
+        clip: true
+
+        Behavior on height {
+            NumberAnimation {duration: 200; easing.type: Easing.OutSine}
+        }
+
+        Text {
+            id: screenName
+            text: "Discover"
+            color: "white"
+            font.pixelSize: 15
+            font.family: "Open Sans"
+            font.capitalization: Font.AllUppercase
+            font.letterSpacing: 2
+
+            anchors {
+                left: parent.left
+                leftMargin: 20
+                bottom: parent.bottom
+                bottomMargin: 12
+            }
+        }
+
+        BWMediaControlButton {
+            id: buttonHamburgerMenu
+            width: 30
+            height: width
+            source: menuOpened ? "qrc:/buttons/burgerMenuToggled" : "qrc:/buttons/burgerMenu"
+
+            anchors {
+                right: parent.right
+                rightMargin: 20
+                bottom: parent.bottom
+                bottomMargin: 7
+            }
+
+            onClicked: {
+                menuOpened = !menuOpened
+            }
+        }
+    }
+
+    HamburgerMenu {
+        width: 200
+        visible: height != 0
+        opened: menuOpened
+
+        onOpenedChanged: {
+            if(opened) {
+                focus = true
+                optionsModel.clear()
+                optionsModel.append({"name": "Add selected to queue", "danger": false, "active": resultsGrid.videosSelected.length})
+                optionsModel.append({"name": "Add selected to playlist...", "danger": false, "active": resultsGrid.videosSelected.length})
+            }
+        }
+
+        onFocusChanged: {
+            if(!focus) {
+                menuOpened = false
+            }
+        }
+
+        anchors {
+            right: parent.right
+            top: topBar.bottom
+        }
+
+        onOptionClicked: {
+            switch(index)
+            {
+            case 0:
+            default:
+                if(resultsGrid.videosSelected.length) {
+                    for(var i = 0; i < resultsGrid.videosSelected.length; ++i) {
+                        var element = resultsGrid.model.get(resultsGrid.videosSelected[i])
+                        addVideoToPlayQueue(element.id, element.title, element.subtitle, element.thumbnail, element.duration)
+                    }
+                    if(resultsGrid.videosSelected.length > 1) {
+                        ApplicationManager.triggerNotification("Added " + resultsGrid.videosSelected.length + " items to playing queue")
+                    }
+
+                    resultsGrid.videosSelected = []
+                }
+                break;
+            case 1:
+                playlistSelectionPopUp.visible = true
+                playlistSelectionPopUp.forceActiveFocus()
+                tagsHolder.enabled = false
+                topBar.enabled = false
+                mainPanel.enabled = false
+                break;
+            }
+
+            menuOpened = false
+        }
+
+        ListModel {
+            id: optionsModel
+        }
+
+        menuModel: optionsModel
+    }
+
+    PlaylistSelection {
+        id: playlistSelectionPopUp
+        visible: false
+
+        anchors.centerIn: parent
+
+        onAddItemsToPlaylist: {
+            var playlist = PlaylistsManager.playlist(name)
+
+            var ids = new Array
+            var titles = new Array
+            var subTitles = new Array
+            var thumbnails = new Array
+            var durations = new Array
+
+            for(var i = 0; i < resultsGrid.videosSelected.length; ++i) {
+                var videoSelected = resultsGrid.model.get(resultsGrid.videosSelected[i])
+                ids.push(videoSelected.id)
+                titles.push(videoSelected.title)
+                subTitles.push(videoSelected.subtitle)
+                thumbnails.push(videoSelected.thumbnail)
+                durations.push(videoSelected.duration)
+            }
+
+            playlist.addItems(ids, titles, subTitles, thumbnails, durations)
+
+            visible = false
+            tagsHolder.enabled = true
+            topBar.enabled = true
+            mainPanel.enabled = true
+        }
+
+        onCancel: {
+            visible = false
+            tagsHolder.enabled = true
+            topBar.enabled = true
+            mainPanel.enabled = true
         }
     }
 

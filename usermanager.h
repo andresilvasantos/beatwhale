@@ -11,6 +11,10 @@ class UserManager : public QObject
 {
     Q_OBJECT
 
+    Q_PROPERTY(int orderFilter READ orderFilter WRITE setOrderFilter NOTIFY orderFilterChanged)
+    Q_PROPERTY(int durationFilter READ durationFilter WRITE setDurationFilter NOTIFY durationFilterChanged)
+    Q_PROPERTY(bool musicOnlyFilter READ musicOnlyFilter WRITE setMusicOnlyFilter NOTIFY musicOnlyFilterChanged)
+
 public:
     static UserManager* singleton();
     static void declareQML();
@@ -25,7 +29,20 @@ public:
     Q_INVOKABLE bool rememberCredentials() const;
     Q_INVOKABLE void setRememberCredentials(const bool& remember);
 
+    int orderFilter() const;
+    void setOrderFilter(const int& orderFilter);
+
+    int durationFilter() const;
+    void setDurationFilter(const int& durationFilter);
+
+    bool musicOnlyFilter() const;
+    void setMusicOnlyFilter(const bool& musicOnly);
+
 signals:
+    void orderFilterChanged(const int& orderFilter);
+    void durationFilterChanged(const int& durationFilter);
+    void musicOnlyFilterChanged(const bool& musicOnlyFilter);
+
     void createAccountVerificationSuccess();
     void createAccountVerificationFailed(const QString& message);
 

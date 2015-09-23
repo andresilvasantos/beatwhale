@@ -3,7 +3,9 @@ import BeatWhaleAPI 1.0
 
 Item {
     id: rootRect
+
     property string source
+    property string tooltip
     property bool mirror
 
     signal clicked()
@@ -31,11 +33,13 @@ Item {
             onEntered: {
                 parent.opacity = 1
                 ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                if(tooltip.length) ApplicationManager.triggerTooltip(tooltip, 15, -10, 1200)
             }
 
             onExited: {
                 parent.opacity = .7
                 ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                if(tooltip.length) ApplicationManager.cancelTooltip()
             }
 
             onClicked: {

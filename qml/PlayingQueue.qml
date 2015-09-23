@@ -8,20 +8,33 @@ Rectangle {
 
     property bool controlKeyPressed: false
     property bool shiftKeyPressed: false
+    property bool menuOpened: false
 
     signal playVideoRequested(int index)
     signal removeVideoRequested(int index)
+    signal clearQueue()
     signal dragVideosStarted(string dragInfo)
     signal dragVideosFinished()
 
-    signal showTooltip(string text, real x, real y)
-    signal hideTooltip()
 
     Rectangle {
         id: mainPanel
         color: "#20e7ebee"
         anchors.fill: parent
         clip: true
+
+        Image {
+            source: "qrc:/images/backgroundPattern"
+            fillMode: Image.PreserveAspectCrop
+            opacity: playingModel.count ? 0 : .1
+            visible: opacity != 0
+            asynchronous: true
+            anchors.fill: parent
+
+            Behavior on opacity {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+            }
+        }
 
         Text {
             id: informativeText
@@ -120,15 +133,6 @@ Rectangle {
                         rootRect.removeVideoRequested(index)
                     }
 
-                    onShowTooltip: {
-                        rootRect.showTooltip(text, x + thumbnailDelegate.x + resultsGridHolder.x,
-                                             y + thumbnailDelegate.y + resultsGridHolder.y - resultsGrid.contentY + resultsGrid.topMarginValue)
-                    }
-
-                    onHideTooltip: {
-                        rootRect.hideTooltip()
-                    }
-
                     onSelectionRequest: {
                         if(!selected) {
                             if(controlKeyPressed) {
@@ -166,6 +170,7 @@ Rectangle {
 
                     onDragStarted: {
                         if(!resultsGrid.videosSelected.length) return
+
 
                         var dragInfo = ""
                         for(var i = 0; i < resultsGrid.videosSelected.length; ++i) {
@@ -216,6 +221,55 @@ Rectangle {
                     }
                 }
 
+                DropArea {
+                    id: dropArea
+                    anchors.fill: parent
+
+                    property bool dragging: ApplicationManager.dragging
+
+                    onDraggingChanged: {
+                        if(dragging) return
+                        var point = Qt.point(dropArea.mapFromItem(null, ApplicationManager.mouseX, 0).x, dropArea.mapFromItem(null, 0, ApplicationManager.mouseY).y)
+                        if(contains(point)) {
+
+                            function sortNumber(a,b) {
+                                return a - b;
+                            }
+
+                            var overIndex = resultsGrid.indexAt(point.x, point.y + resultsGrid.contentY)
+                            resultsGrid.videosSelected.sort(sortNumber)
+
+                            var subtract = 0
+                            var newVideosSelected = new Array
+                            for(var i = 0; i < resultsGrid.videosSelected.length; ++i) {
+                                if(overIndex === -1) overIndex = resultsGrid.model.count - 1
+                                if(overIndex > resultsGrid.videosSelected[i]) {
+                                    resultsGrid.model.move(resultsGrid.videosSelected[i] - subtract, overIndex, 1)
+                                    ++subtract
+
+                                    for(var j = 0; j < newVideosSelected.length; ++j) {
+                                        var selection = newVideosSelected[j]
+                                        newVideosSelected[j] = --selection
+                                    }
+                                }
+                                else
+                                {
+                                    resultsGrid.model.move(resultsGrid.videosSelected[i], overIndex, 1)
+
+                                    for(j = 0; j < newVideosSelected.length; ++j) {
+                                        selection = newVideosSelected[j]
+                                        newVideosSelected[j] = ++selection
+                                    }
+                                }
+
+                                newVideosSelected.push(overIndex)
+                            }
+
+                            resultsGrid.videosSelected = newVideosSelected
+                        }
+                    }
+                }
+
                 MouseArea {
                     anchors.fill: parent
                     propagateComposedEvents: true
@@ -237,15 +291,15 @@ Rectangle {
     Rectangle {
         id: topBar
         width: parent.width
-        height: 50
-        color: "#bb333333"
+        height: 45
+        color: "#333333"
 
         Text {
             id: screenName
             text: "Playing Right Now"
             color: "white"
             font.pixelSize: 15
-//            font.family: "Open Sans"
+            font.family: "Open Sans"
             font.capitalization: Font.AllUppercase
             font.letterSpacing: 2
 
@@ -256,14 +310,11 @@ Rectangle {
             }
         }
 
-        BWButton {
-            id: buttonClearQueue
-            color: "#656565"
-            hoverColor: "#545454"
-            selectedColor: "#898989"
-            width: buttonClearQueueText.width + 20
-            height: 28
-            radius: 5
+        BWMediaControlButton {
+            id: buttonHamburgerMenu
+            width: 30
+            height: width
+            source: menuOpened ? "qrc:/buttons/burgerMenuToggled" : "qrc:/buttons/burgerMenu"
 
             anchors {
                 right: parent.right
@@ -271,20 +322,107 @@ Rectangle {
                 verticalCenter: parent.verticalCenter
             }
 
-            Text {
-                id: buttonClearQueueText
-                text: "Clear Queue"
-                color: "white"
-                font.pixelSize: 14
-
-                anchors.centerIn: parent
-            }
-
             onClicked: {
-                resultsGrid.videosSelected = []
-                playingModel.clear()
-                UserManager.queueCleared()
+                menuOpened = !menuOpened
             }
+        }
+    }
+
+    HamburgerMenu {
+        width: 200
+        visible: height != 0
+        opened: menuOpened
+
+        onOpenedChanged: {
+            if(opened) {
+                focus = true
+                optionsModel.clear()
+                optionsModel.append({"name": "Add selected to playlist...", "danger": false, "active": resultsGrid.videosSelected.length})
+                optionsModel.append({"name": "Remove selected", "danger": false, "active": resultsGrid.videosSelected.length})
+                optionsModel.append({"name": "Clear queue", "danger": false, "active": resultsGrid.model.count})
+            }
+        }
+
+        onFocusChanged: {
+            if(!focus) {
+                menuOpened = false
+            }
+        }
+
+        anchors {
+            right: parent.right
+            top: topBar.bottom
+        }
+
+        onOptionClicked: {
+            switch(index)
+            {
+            case 0:
+            default:
+                playlistSelectionPopUp.visible = true
+                playlistSelectionPopUp.forceActiveFocus()
+                topBar.enabled = false
+                mainPanel.enabled = false
+                break;
+            case 1:
+                if(resultsGrid.videosSelected.length) {
+                    for(var i = resultsGrid.videosSelected.length - 1; i >= 0; --i) {
+                        rootRect.removeVideoRequested(resultsGrid.videosSelected[i])
+                    }
+                    resultsGrid.videosSelected = []
+                }
+                break;
+            case 2:
+                resultsGrid.videosSelected = []
+                clearQueue()
+                break;
+            }
+
+            menuOpened = false
+        }
+
+        ListModel {
+            id: optionsModel
+        }
+
+        menuModel: optionsModel
+    }
+
+    PlaylistSelection {
+        id: playlistSelectionPopUp
+        visible: false
+
+        anchors.centerIn: parent
+
+        onAddItemsToPlaylist: {
+            var playlist = PlaylistsManager.playlist(name)
+
+            var ids = new Array
+            var titles = new Array
+            var subTitles = new Array
+            var thumbnails = new Array
+            var durations = new Array
+
+            for(var i = 0; i < resultsGrid.videosSelected.length; ++i) {
+                var videoSelected = resultsGrid.model.get(resultsGrid.videosSelected[i])
+                ids.push(videoSelected.id)
+                titles.push(videoSelected.title)
+                subTitles.push(videoSelected.subtitle)
+                thumbnails.push(videoSelected.thumbnail)
+                durations.push(videoSelected.duration)
+            }
+
+            playlist.addItems(ids, titles, subTitles, thumbnails, durations)
+
+            visible = false
+            topBar.enabled = true
+            mainPanel.enabled = true
+        }
+
+        onCancel: {
+            visible = false
+            topBar.enabled = true
+            mainPanel.enabled = true
         }
     }
 }

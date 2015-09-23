@@ -4,8 +4,9 @@ ROOT_DIR = ../..
 
 macx {
     CONFIG+= app_bundle
-    CONFIG += c++11
 }
+
+CONFIG += c++11
 
 CONFIG(debug, debug|release): DESTDIR = $${ROOT_DIR}/Output/debug
 CONFIG(release, debug|release): DESTDIR = $${ROOT_DIR}/Output/release
@@ -37,7 +38,7 @@ INCLUDEPATH += ../../TOP/TOP-Components
 INCLUDEPATH += ../../TOP/TOP-VLC
 
 win32 {
-    VERSION = 0.7.3.0
+    VERSION = 0.8.0.0
     RC_ICONS="icon/icon.ico"
     QMAKE_TARGET_COMPANY = "BeatWhale Inc"
     QMAKE_TARGET_PRODUCT = "BeatWhale"

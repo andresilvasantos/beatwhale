@@ -19,6 +19,7 @@ public:
         networkManager(0),
         youtubeUrlProcess(0),
         youtubeDurationProcess(0),
+        onlyMusic(false),
         orderFilter(YoutubeAPIManager::ORDER_VIEWCOUNT),
         durationFilter(YoutubeAPIManager::DURATION_ANY)
     {
@@ -46,7 +47,9 @@ public:
     QProcess *youtubeUrlProcess;
     QProcess *youtubeDurationProcess;
 
+    bool onlyMusic;
     QJsonDocument searchDocument;
+    QStringList excludeSuggestionIDs;
     QStringList videoDurationRequests;
 
     YoutubeAPIManager::OrderFilter orderFilter;
@@ -116,6 +119,12 @@ void YoutubeAPIManager::ignoreSSLErrors(QNetworkReply* reply,QList<QSslError> er
    reply->ignoreSslErrors(errors);
 }
 
+void YoutubeAPIManager::setMusicOnlyFilter(const bool &onlyMusic)
+{
+    Q_D(YoutubeAPIManager);
+    d->onlyMusic = onlyMusic;
+}
+
 void YoutubeAPIManager::setOrderFilter(YoutubeAPIManager::OrderFilter orderFilter)
 {
     Q_D(YoutubeAPIManager);
@@ -126,66 +135,6 @@ void YoutubeAPIManager::setDurationFilter(YoutubeAPIManager::DurationFilter dura
 {
     Q_D(YoutubeAPIManager);
     d->durationFilter = durationFilter;
-}
-
-void YoutubeAPIManager::search(const QString &search)
-{
-    Q_D(YoutubeAPIManager);
-
-    d->searchDocument = QJsonDocument();
-
-    QString orderBy;
-    switch(d->orderFilter)
-    {
-    case ORDER_RELEVANCE:
-        orderBy = "relevance";
-        break;
-    case ORDER_DATE:
-        orderBy = "date";
-        break;
-    case ORDER_RATING:
-        orderBy = "rating";
-        break;
-    case ORDER_VIEWCOUNT:
-    default:
-        orderBy = "viewCount";
-        break;
-    }
-
-    QString videoDurationStr;
-    switch(d->durationFilter)
-    {
-    case DURATION_SHORT:
-        videoDurationStr = "short";
-        break;
-    case DURATION_MEDIUM:
-        videoDurationStr = "medium";
-        break;
-    case DURATION_LONG:
-        videoDurationStr = "long";
-        break;
-    case DURATION_ANY:
-    default:
-        videoDurationStr = "any";
-        break;
-    }
-
-    QUrl url("https://www.googleapis.com/youtube/v3/search?part=snippet&q=" + search + "&type=video&videoDuration=" + videoDurationStr +
-             "&maxResults=50&order=" + orderBy + "&key=" + d->youtubeAPIKey);
-    qDebug() << url;
-
-    QNetworkRequest request(url);
-    QNetworkReply* reply = d->networkManager->get(request);
-    connect(reply, SIGNAL(finished()), SLOT(searchFinished()));
-    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), SLOT(searchError(QNetworkReply::NetworkError)));
-
-    QTimer *timer = new QTimer(this);
-    timer->setSingleShot(true);
-    timer->setInterval(TIMEOUT_INTERVAL);
-    timer->start();
-    connect(timer, SIGNAL(timeout()), SLOT(searchTimeout()));
-
-    d->repliesTimeoutMap.insert(timer, reply);
 }
 
 void YoutubeAPIManager::search(const QString &search, const QString &nextPageToken)
@@ -230,8 +179,11 @@ void YoutubeAPIManager::search(const QString &search, const QString &nextPageTok
         break;
     }
 
+    QString pageTokenParameter = nextPageToken.isEmpty() ? "" : "&pageToken=" + nextPageToken;
+    QString musicFilter = d->onlyMusic ? "&videoCategoryId=10" : "";
+
     QUrl url("https://www.googleapis.com/youtube/v3/search?part=snippet&q=" + search + "&type=video&videoDuration=" + videoDurationStr +
-             "&maxResults=50&order=" + orderBy + "&pageToken=" + nextPageToken + "&key=" + d->youtubeAPIKey);
+             "&maxResults=50" + musicFilter + "&order=" + orderBy + pageTokenParameter + "&key=" + d->youtubeAPIKey);
     qDebug() << url;
 
     QNetworkRequest request(url);
@@ -343,7 +295,6 @@ void YoutubeAPIManager::searchVideosDuration(const QString &videosIDs)
     d->repliesTimeoutMap.insert(timer, reply);
 }
 
-
 void YoutubeAPIManager::searchVideosDurationFinished()
 {
     Q_D(YoutubeAPIManager);
@@ -418,6 +369,8 @@ void YoutubeAPIManager::searchVideosDurationError(QNetworkReply::NetworkError er
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
     if(!reply) return;
 
+    emit searchFailed();
+
     removeTimer(reply);
     delete reply;
 }
@@ -433,6 +386,216 @@ void YoutubeAPIManager::searchVideosDurationTimeout()
     QNetworkReply *reply = d->repliesTimeoutMap.value(timer, 0);
     if(!reply) return;
 
+    emit searchFailed();
+
+    removeTimer(reply);
+    delete reply;
+}
+
+void YoutubeAPIManager::suggestion(const QString &id, const QStringList excludeSuggestionIDs)
+{
+    Q_D(YoutubeAPIManager);
+
+    d->excludeSuggestionIDs = excludeSuggestionIDs;
+
+    QUrl url("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=30&relatedToVideoId=" + id + "&key=" + d->youtubeAPIKey);
+    qDebug() << url;
+
+    QNetworkRequest request(url);
+    QNetworkReply* reply = d->networkManager->get(request);
+    connect(reply, SIGNAL(finished()), SLOT(suggestionFinished()));
+    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), SLOT(suggestionError(QNetworkReply::NetworkError)));
+
+    QTimer *timer = new QTimer(this);
+    timer->setSingleShot(true);
+    timer->setInterval(TIMEOUT_INTERVAL);
+    timer->start();
+    connect(timer, SIGNAL(timeout()), SLOT(suggestionTimeout()));
+
+    d->repliesTimeoutMap.insert(timer, reply);
+}
+
+void YoutubeAPIManager::suggestionFinished()
+{
+    Q_D(YoutubeAPIManager);
+
+    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+    if(!reply) return;
+
+    const QByteArray replyBA = reply->readAll();
+    removeTimer(reply);
+    delete reply;
+
+    QJsonDocument document = QJsonDocument::fromJson(replyBA);
+    QJsonObject object = document.object();
+    QJsonArray searchItems = object.value("items").toArray();
+
+    bool alreadySuggested = true;
+    QString selectedID;
+    QJsonObject resultObj;
+
+    while(alreadySuggested && !searchItems.isEmpty())
+    {
+        int selectedIndex = rand() % searchItems.count();
+
+        resultObj = searchItems.takeAt(selectedIndex).toObject();
+        QJsonObject typeObj = resultObj.value("id").toObject();
+        selectedID = typeObj.value("videoId").toString();
+        if(!d->excludeSuggestionIDs.contains(selectedID)) alreadySuggested = false;
+    }
+
+    if(selectedID.isEmpty() || searchItems.isEmpty())
+    {
+        emit suggestionFailed();
+        return;
+    }
+
+    QJsonObject snippetObj = resultObj.value("snippet").toObject();
+    QString thumbnail = snippetObj.value("thumbnails").toObject().value("high").toObject().value("url").toString();
+    QString title = snippetObj.value("title").toString();
+
+    suggestionVideoDuration(selectedID, title, thumbnail);
+}
+
+void YoutubeAPIManager::suggestionError(QNetworkReply::NetworkError error)
+{
+    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+    if(!reply) return;
+
+    emit suggestionFailed();
+
+    removeTimer(reply);
+    delete reply;
+}
+
+void YoutubeAPIManager::suggestionTimeout()
+{
+    Q_D(YoutubeAPIManager);
+
+    QTimer *timer = qobject_cast<QTimer*>(sender());
+
+    if(!timer) return;
+
+    QNetworkReply *reply = d->repliesTimeoutMap.value(timer, 0);
+    if(!reply) return;
+
+    emit suggestionFailed();
+
+    removeTimer(reply);
+    delete reply;
+}
+void YoutubeAPIManager::suggestionVideoDuration(const QString &id, const QString &title, const QString &thumbnail)
+{
+    Q_D(YoutubeAPIManager);
+
+    QUrl url("https://www.googleapis.com/youtube/v3/videos?id=" + id + "&part=contentDetails&key=" + d->youtubeAPIKey);
+    QNetworkRequest request(url);
+    QNetworkReply* reply = d->networkManager->get(request);
+    connect(reply, SIGNAL(finished()), SLOT(suggestionVideoDurationFinished()));
+    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), SLOT(suggestionVideoDurationError(QNetworkReply::NetworkError)));
+
+    reply->setProperty("id", id);
+    reply->setProperty("title", title);
+    reply->setProperty("thumbnail", thumbnail);
+
+    QTimer *timer = new QTimer(this);
+    timer->setSingleShot(true);
+    timer->setInterval(TIMEOUT_INTERVAL);
+    timer->start();
+    connect(timer, SIGNAL(timeout()), SLOT(suggestionVideoDurationTimeout()));
+
+    d->repliesTimeoutMap.insert(timer, reply);
+}
+
+void YoutubeAPIManager::suggestionVideoDurationFinished()
+{
+    Q_D(YoutubeAPIManager);
+
+    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+    if(!reply) return;
+
+    const QByteArray replyBA = reply->readAll();
+    removeTimer(reply);
+
+    QString id = reply->property("id").toString();
+    QString title = reply->property("title").toString();
+    QString thumbnail = reply->property("thumbnail").toString();
+
+    delete reply;
+
+    QJsonDocument document = QJsonDocument::fromJson(replyBA);
+
+    QJsonObject object = document.object();
+    QJsonArray searchItems = object.value("items").toArray();
+
+    QJsonObject resultObj = searchItems.at(0).toObject();
+    QJsonObject detailsObj = resultObj.value("contentDetails").toObject();
+    QString videoDuration = detailsObj.value("duration").toString();
+
+    if(!videoDuration.startsWith("PT"))
+    {
+        emit suggestionFailed();
+        return;
+    }
+
+    videoDuration = videoDuration.remove(0, 2);
+    QString hoursStr, minutesStr, secondsStr;
+
+    //Hours
+    if(videoDuration.contains("H"))
+    {
+        hoursStr = videoDuration.left(videoDuration.indexOf("H"));
+        if(hoursStr.count() < 2) hoursStr.insert(0, "0");
+        videoDuration = videoDuration.remove(0, videoDuration.indexOf("H") + 1);
+    }
+
+    //Minutes
+    {
+        if(videoDuration.contains("M")) {
+            minutesStr = videoDuration.left(videoDuration.indexOf("M"));
+        }
+        while (minutesStr.count() < 2) minutesStr.insert(0, "0");
+        videoDuration = videoDuration.remove(0, videoDuration.indexOf("M") + 1);
+    }
+
+    //Seconds
+    {
+        secondsStr = videoDuration.left(videoDuration.indexOf("S"));
+        while (secondsStr.count() < 2) secondsStr.insert(0, "0");
+    }
+
+    QString duration;
+    if(hoursStr.count()) duration.append(hoursStr + ":");
+    if(minutesStr.count()) duration.append(minutesStr + ":");
+    duration.append(secondsStr);
+
+    emit suggestionSuccess(id, title, thumbnail, duration);
+}
+
+void YoutubeAPIManager::suggestionVideoDurationError(QNetworkReply::NetworkError error)
+{
+    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+    if(!reply) return;
+
+    emit suggestionFailed();
+
+    removeTimer(reply);
+    delete reply;
+}
+
+void YoutubeAPIManager::suggestionVideoDurationTimeout()
+{
+    Q_D(YoutubeAPIManager);
+
+    QTimer *timer = qobject_cast<QTimer*>(sender());
+
+    if(!timer) return;
+
+    QNetworkReply *reply = d->repliesTimeoutMap.value(timer, 0);
+    if(!reply) return;
+
+    emit suggestionFailed();
+
     removeTimer(reply);
     delete reply;
 }
@@ -444,7 +607,7 @@ void YoutubeAPIManager::videoUrl(const QString &videoID)
     if(d->youtubeUrlProcess->isOpen()) d->youtubeUrlProcess->close();
 
     QStringList arguments;
-    arguments << "--get-url" << "https://www.youtube.com/watch?v=" + videoID;// << "-f" << "bestvideo+bestaudio";
+    arguments << "--get-url" << "https://www.youtube.com/watch?v=" + videoID;
     d->youtubeDurationProcess->setProperty("videoID", videoID);
     d->youtubeUrlProcess->setArguments(arguments);
     d->youtubeUrlProcess->open();
@@ -503,6 +666,7 @@ void YoutubeAPIManager::videoDuration(const QString &videoID)
     d->youtubeDurationProcess->setArguments(arguments);
     d->youtubeDurationProcess->open();
 
+    connect(d->youtubeDurationProcess, SIGNAL(finished(int)), SLOT(videoDurationFinished()));
     connect(d->youtubeDurationProcess, SIGNAL(readyReadStandardOutput()), SLOT(videoDurationFinished()));
 }
 
@@ -512,16 +676,21 @@ void YoutubeAPIManager::videoDurationFinished()
 
     if(d->youtubeDurationProcess != sender()) return;
 
+    disconnect(d->youtubeDurationProcess, SIGNAL(finished(int)), this, SLOT(videoDurationFinished()));
     disconnect(d->youtubeDurationProcess, SIGNAL(readyReadStandardOutput()), this, SLOT(videoDurationFinished()));
 
     QString duration = d->youtubeDurationProcess->readAll();
     QString videoID = d->youtubeDurationProcess->property("videoID").toString();
 
+
     d->youtubeDurationProcess->close();
 
-
-    emit videoDurationSuccess(videoID, duration);
-
+    if(!duration.isEmpty())
+    {
+        duration.remove("\n");
+        duration.remove("\r");
+        emit videoDurationSuccess(videoID, duration);
+    }
 
     if(d->videoDurationRequests.count())
     {

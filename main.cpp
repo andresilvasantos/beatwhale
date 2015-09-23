@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
 
     //logFileName = "log.txt";
-    //qInstallMessageHandler(myMessageHandler);
+//    qInstallMessageHandler(myMessageHandler);
 
 #ifdef Q_OS_WIN
     //qputenv("VLC_PLUGIN_PATH", QString(QCoreApplication::applicationDirPath() + "/vlc_plugins/"));

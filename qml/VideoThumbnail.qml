@@ -26,9 +26,6 @@ Rectangle {
     signal entered()
     signal exited()
 
-    signal showTooltip(string text, real x, real y)
-    signal hideTooltip()
-
     signal dragStarted()
     signal dragFinished()
 
@@ -189,11 +186,18 @@ Rectangle {
                 hoverEnabled: true
 
                 onEntered: {
-                    showTooltip(parent.playlists, playlistInfo.x + 30, playlistInfo.y)
+                    var playlistsStr = ""
+                    for(var i = 0; i < parent.playlists.length; ++i) {
+                        playlistsStr += parent.playlists[i]
+                        if(i < parent.playlists.length - 1)
+                            playlistsStr += "\n"
+                    }
+
+                    ApplicationManager.triggerTooltip(playlistsStr, 15, 0, 0)
                 }
 
                 onExited: {
-                    hideTooltip()
+                    ApplicationManager.cancelTooltip()
                 }
             }
         }
@@ -204,7 +208,7 @@ Rectangle {
             height: width
             sourceSize.width: width
             sourceSize.height: width
-            source: "qrc:/images/remove"
+            source: "qrc:/buttons/remove"
             opacity: 0
             asynchronous: true
             smooth: false
@@ -229,15 +233,18 @@ Rectangle {
                     thumbnailHovered = true
                     removeVideoImage.opacity = .7
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                    ApplicationManager.triggerTooltip("Remove Video", 10, 0, 1200)
                 }
 
                 onExited: {
                     removeVideoImage.opacity = .3
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    ApplicationManager.cancelTooltip()
                 }
 
                 onClicked: {
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    ApplicationManager.cancelTooltip()
                     if(playQueue || playlist) removeVideo(videoID)
                 }
             }
@@ -249,7 +256,7 @@ Rectangle {
             height: width
             sourceSize.width: width
             sourceSize.height: width
-            source: favorited ? "qrc:/images/heartChecked" : "qrc:/images/heartUnchecked"
+            source: favorited ? "qrc:/buttons/heartChecked" : "qrc:/buttons/heartUnchecked"
             opacity: favorited ? .7 : 0
             asynchronous: true
             smooth: true
@@ -279,15 +286,18 @@ Rectangle {
                     thumbnailHovered = true
                     favoriteVideoImage.opacity = .7
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                    ApplicationManager.triggerTooltip(favorited ? "Remove From Favorites" : "Add To Favorites", 10, 0, 1200)
                 }
 
                 onExited: {
                     if(!favorited) favoriteVideoImage.opacity = .3
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    ApplicationManager.cancelTooltip()
                 }
 
                 onClicked: {
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    ApplicationManager.cancelTooltip()
 
                     favorited = !favorited
 
@@ -311,7 +321,7 @@ Rectangle {
             height: width
             sourceSize.width: width
             sourceSize.height: width
-            source: "qrc:/images/addQueue"
+            source: "qrc:/buttons/addQueue"
             opacity: 0
             asynchronous: true
             smooth: true
@@ -340,11 +350,13 @@ Rectangle {
                     thumbnailHovered = true
                     addToQueueImage.opacity = 1
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                    ApplicationManager.triggerTooltip("Add To Playing Queue", 10, 0, 1200)
                 }
 
                 onExited: {
                     addToQueueImage.opacity = .5
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    ApplicationManager.cancelTooltip()
                 }
 
                 onClicked: {
@@ -367,7 +379,7 @@ Rectangle {
             height: width
             sourceSize.width: width
             sourceSize.height: width
-            source: "qrc:/images/play"
+            source: "qrc:/buttons/play"
             opacity: 0
             asynchronous: true
             smooth: true
@@ -397,12 +409,14 @@ Rectangle {
                     playNowImage.opacity = 1
 
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                    ApplicationManager.triggerTooltip("Play Now", 10, 0, 1200)
                 }
 
                 onExited: {
                     playNowImage.opacity = .5
 
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    ApplicationManager.cancelTooltip()
                 }
 
                 onClicked: {
@@ -443,14 +457,11 @@ Rectangle {
             hoverEnabled: true
 
             onEntered: {
-                showTooltipSubTitleTimer.start()
-                showTooltipTitleTimer.stop()
+                ApplicationManager.triggerTooltip(videoSubTitle, 10, 0, 1200)
             }
 
             onExited: {
-                showTooltipTitleTimer.stop()
-                showTooltipSubTitleTimer.stop()
-                hideTooltip()
+                ApplicationManager.cancelTooltip()
             }
         }
     }
@@ -477,33 +488,12 @@ Rectangle {
             hoverEnabled: true
 
             onEntered: {
-                showTooltipTitleTimer.start()
-                showTooltipSubTitleTimer.stop()
+                ApplicationManager.triggerTooltip(videoTitle, 10, 0, 1200)
             }
 
             onExited: {
-                showTooltipTitleTimer.stop()
-                showTooltipSubTitleTimer.stop()
-                hideTooltip()
+                ApplicationManager.cancelTooltip()
             }
-        }
-    }
-
-    Timer {
-        id: showTooltipSubTitleTimer
-        interval: 1200
-
-        onTriggered: {
-            showTooltip(videoSubTitle, subTitleText.x + subTitleTextMouseArea.mouseX, subTitleText.y + subTitleTextMouseArea.mouseY)
-        }
-    }
-
-    Timer {
-        id: showTooltipTitleTimer
-        interval: 1200
-
-        onTriggered: {
-            showTooltip(videoTitle, titleText.x + titleTextMouseArea.mouseX, titleText.y + titleTextMouseArea.mouseY)
         }
     }
 }

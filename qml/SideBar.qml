@@ -25,11 +25,9 @@ Rectangle {
     signal requestScreen(string url)
     signal requestPlaylist(string name)
     signal addVideoToPlayQueue(string id, string title, string subtitle, string thumbnail, string duration)
+    signal addPlaylistToPlayQueue(string name)
     signal dragVideoStarted(string dragInfo)
     signal dragVideoFinished()
-
-    signal showTooltip(string text, real x, real y)
-    signal hideTooltip()
 
     onUserSettingsChanged: {
         if(userSettings) minimizeVideo()
@@ -101,6 +99,12 @@ Rectangle {
                 sidebarList.selectedIndex = index
             }
 
+            onDoubleClicked: {
+                if(!page) {
+                    addPlaylistToPlayQueue(caption)
+                }
+            }
+
             DropArea {
                 id: dropArea
                 enabled: !page || url == "PlayingQueue.qml"
@@ -123,6 +127,7 @@ Rectangle {
                 }
 
                 onDraggingChanged: {
+                    if(!enabled) return
                     if(contains(Qt.point(dropArea.mapFromItem(null, ApplicationManager.mouseX, 0).x,
                                          dropArea.mapFromItem(null, 0, ApplicationManager.mouseY).y))) {
                         if(!checked) button.color = "transparent"
@@ -197,7 +202,6 @@ Rectangle {
     Component {
         id: sidebarListSeparator
         Item {
-            opacity: 0.7
             width: sideBar.width
             height: 40
 
@@ -208,6 +212,7 @@ Rectangle {
                 id: separatorText
                 text: caption
                 color: "#61666a"
+                opacity: .7
                 font.pixelSize: 10
                 font.family: "Arial"
                 horizontalAlignment: Text.AlignLeft
@@ -227,22 +232,64 @@ Rectangle {
                 hoverEnabled: true
 
                 onEntered: {
-                    if(playlistSeparator) buttonAdd.opacity = 1
+                    if(playlistSeparator) buttonAdd.show = true
                 }
 
                 onExited: {
-                    if(playlistSeparator) buttonAdd.opacity = 0
+                    if(playlistSeparator) buttonAdd.show = false
                 }
+            }
+
+            Rectangle {
+                id: buttonAddStrobe
+                width: 30
+                height: width
+                color: "#00addc"
+                radius: width * .5
+                opacity: .2
+                visible: playlistSeparator && buttonsModel.count == 6
+                scale: .7
+
+                anchors.centerIn: buttonAdd
+
+                SequentialAnimation on scale {
+                    loops: Animation.Infinite
+                    NumberAnimation {to: .7; duration: 1000; easing.type: Easing.OutSine}
+                    PauseAnimation { duration: 2000 }
+                    NumberAnimation {to: 1; duration: 1000; easing.type: Easing.OutSine}
+                    NumberAnimation {to: .7; duration: 1000; easing.type: Easing.OutSine}
+                    NumberAnimation {to: 1; duration: 1000; easing.type: Easing.OutSine}
+                }
+            }
+
+            Rectangle {
+                width: 20
+                height: width
+                color: "white"
+                radius: width * .5
+                visible: buttonAddStrobe.visible
+
+                anchors.centerIn: buttonAdd
             }
 
             Image {
                 id: buttonAdd
-                width: 25
+                width: 26
                 height: width
-                sourceSize.width: 50
-                sourceSize.height: 50
-                source: "qrc:/images/addDark"
-                opacity: 0
+                sourceSize.width: 52
+                sourceSize.height: 52
+                source: "qrc:/buttons/addDark"
+                opacity: {
+                    if(buttonsModel.count == 6) {
+                        if(hovered) return 1
+                        return .7
+                    }
+                    else {
+                        if(show) return .7
+                        else if(hovered) return 1
+                    }
+                    return 0
+                }
                 visible: playlistSeparator
 
                 anchors {
@@ -259,18 +306,24 @@ Rectangle {
                     NumberAnimation { duration: 200; easing.type: Easing.OutSine }
                 }
 
+                property bool show: false
+                property bool hovered: false
+
                 MouseArea {
                     anchors.fill: parent
                     hoverEnabled: true
 
                     onEntered: {
                         ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
-                        buttonAdd.opacity = 1
+                        ApplicationManager.triggerTooltip("Create New Playlist", 15, -10, 1200)
+                        parent.hovered = true
                     }
 
                     onExited: {
                         ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
-                        buttonAdd.opacity = 0
+                        ApplicationManager.cancelTooltip()
+
+                        parent.hovered = false
                     }
 
                     onPressed: {
@@ -283,10 +336,6 @@ Rectangle {
 
                     onClicked: {
                         var playlist = PlaylistsManager.createPlaylist()
-                        buttonsModel.append({"captionText": playlist.name, type: "playlist"})
-                        buttonsModel.quick_sort_starting_at(6)
-                        sidebarList.selectedIndex = buttonsModel.count - 1
-                        requestPlaylist(playlist.name)
                     }
                 }
             }
@@ -324,9 +373,14 @@ Rectangle {
             sourceComponent: type == "separator" ? sidebarListSeparator : sidebarListButton
 
             property string caption: captionText
+            property int currentIndex: index
 
             onCaptionChanged: {
                 if(item) item.caption = caption
+            }
+
+            onCurrentIndexChanged: {
+                if(item && type != "separator") item.index = currentIndex
             }
 
             Component.onCompleted: {
@@ -463,11 +517,11 @@ Rectangle {
 
                 onEntered: {
                     parent.opacity = 1
-                    showTooltip(parent.playlists, playlistInfo.x + video.x + 20, playlistInfo.y + video.y)
+                    ApplicationManager.triggerTooltip(parent.playlists, 15, 0, 0)
                 }
 
                 onExited: {
-                    hideTooltip()
+                    ApplicationManager.cancelTooltip()
                 }
             }
         }
@@ -476,7 +530,7 @@ Rectangle {
             id: buttonShowVideoLarge
             width: 25
             height: 25
-            source: "qrc:/images/enlarge"
+            source: "qrc:/buttons/enlarge"
             opacity: 0
             sourceSize.width: width
             sourceSize.height: height
@@ -507,11 +561,13 @@ Rectangle {
                     parent.opacity = 1
                     parent.scale = 1.1
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                    ApplicationManager.triggerTooltip("Maximize Video", 10, 0, 1200)
                 }
 
                 onExited: {
                     parent.scale = 1
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    ApplicationManager.cancelTooltip()
                 }
 
                 onClicked: {
@@ -524,7 +580,7 @@ Rectangle {
             id: buttonShowVideoFullscreen
             width: 25
             height: 25
-            source: "qrc:/images/fullscreen"
+            source: "qrc:/buttons/fullscreen"
             opacity: 0
             sourceSize.width: width
             sourceSize.height: height
@@ -555,10 +611,12 @@ Rectangle {
                     parent.opacity = 1
                     parent.scale = 1.1
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                    ApplicationManager.triggerTooltip("Fullscreen", 10, 0, 1200)
                 }
 
                 onExited: {
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    ApplicationManager.cancelTooltip()
                     parent.scale = 1
                 }
 
@@ -573,7 +631,7 @@ Rectangle {
             id: favoriteVideoImage
             width: 30
             height: width
-            source: currentVideoFavorited ? "qrc:/images/heartChecked" : "qrc:/images/heartUnchecked"
+            source: currentVideoFavorited ? "qrc:/buttons/heartChecked" : "qrc:/buttons/heartUnchecked"
             sourceSize.width: width
             sourceSize.height: height
             opacity: 0
@@ -606,6 +664,7 @@ Rectangle {
 
                     favoriteVideoImage.opacity = .7
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                    ApplicationManager.triggerTooltip(currentVideoFavorited ? "Remove From Favorites" : "Add To Favorites", 10, 0, 1200)
                 }
 
                 onExited: {
@@ -613,6 +672,7 @@ Rectangle {
 
                     if(!currentVideoFavorited) favoriteVideoImage.opacity = .3
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    ApplicationManager.cancelTooltip()
                 }
 
                 onClicked: {
@@ -659,6 +719,19 @@ Rectangle {
                 top: parent.top
                 topMargin: 5
             }
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+
+                onEntered: {
+                    ApplicationManager.triggerTooltip(currentSubTitle, 10, 0, 1200)
+                }
+
+                onExited: {
+                    ApplicationManager.cancelTooltip()
+                }
+            }
         }
 
         Text {
@@ -675,6 +748,19 @@ Rectangle {
                 top: videoSubTitle.visible ? videoSubTitle.bottom : parent.top
                 topMargin: 5
             }
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+
+                onEntered: {
+                    ApplicationManager.triggerTooltip(currentTitle, 10, 0, 1200)
+                }
+
+                onExited: {
+                    ApplicationManager.cancelTooltip()
+                }
+            }
         }
     }
 
@@ -684,6 +770,25 @@ Rectangle {
         onPlaylistAdded: {
             buttonsModel.append({"captionText": name, type: "playlist"})
             buttonsModel.quick_sort_starting_at(6)
+        }
+
+        onPlaylistCreated: {
+            buttonsModel.append({"captionText": name, type: "playlist"})
+            buttonsModel.quick_sort_starting_at(6)
+
+            var found = false
+            for(var i = 6; i < buttonsModel.count; ++i) {
+                var playlistElement = buttonsModel.get(i)
+                if(playlistElement.captionText == name) {
+                    sidebarList.selectedIndex = i
+                    found = true
+                    break
+                }
+            }
+
+            if(!found) sidebarList.selectedIndex = buttonsModel.count - 1
+
+            requestPlaylist(name)
         }
 
         onPlaylistRemoved: {
@@ -727,6 +832,15 @@ Rectangle {
                 {
                     item.captionText = name
                     buttonsModel.quick_sort_starting_at(6)
+
+                    for(var j = 6; j < buttonsModel.count; ++j) {
+                        var playlistElement = buttonsModel.get(j)
+                        if(playlistElement.captionText == name) {
+                            sidebarList.selectedIndex = j
+                            break
+                        }
+                    }
+
                     break;
                 }
             }

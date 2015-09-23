@@ -13,7 +13,7 @@ class ApplicationManagerPrivate
 {
 public:
     ApplicationManagerPrivate() :
-        version("0.7.3"),
+        version("0.8.0"),
         newVersionAvailable(false),
         window(0),
         windowControlButtonsEnabled(true),
@@ -228,6 +228,8 @@ QString ApplicationManager::dragInfo() const
 
 void ApplicationManager::setCursor(const ApplicationManager::CursorType &cursorType)
 {
+    QApplication::restoreOverrideCursor();
+
     switch(cursorType)
     {
     case CURSORTYPE_BUTTON:
@@ -244,7 +246,6 @@ void ApplicationManager::setCursor(const ApplicationManager::CursorType &cursorT
         break;
     case CURSORTYPE_NORMAL:
     default:
-        QApplication::restoreOverrideCursor();
         break;
     }
 }
@@ -305,6 +306,10 @@ void ApplicationManager::loadConfigurationReply()
             d->newVersionAvailable = true;
             break;
         }
+        else if(newVersionTypes.at(i).toInt() < currentVersionTypes.at(i).toInt())
+        {
+            break;
+        }
     }
 }
 
@@ -312,7 +317,7 @@ void ApplicationManager::checkForUpdates()
 {
     Q_D(ApplicationManager);
 
-    if(d->newVersionAvailable) triggerNotification("New version available. Go to www.beatwhale.com to download.");
+    if(d->newVersionAvailable) triggerNotification("New version available. Go to www.beatwhale.com to download.", 10000);
 }
 
 void ApplicationManager::quit()
@@ -413,9 +418,21 @@ void ApplicationManager::dragFinished()
     emit draggingChanged(d->dragging);
 }
 
-void ApplicationManager::triggerNotification(const QString &message)
+void ApplicationManager::triggerNotification(const QString &message, const int &duration)
 {
     Q_D(ApplicationManager);
     if(!d->notificationsEnabled) return;
-    emit notification(message);
+    emit notification(message, duration);
+}
+
+void ApplicationManager::triggerTooltip(const QString &tooltip, const qreal &displacementX, const qreal &displacementY, const int &duration)
+{
+    Q_D(ApplicationManager);
+
+    emit showTooltip(tooltip, displacementX, displacementY, duration);
+}
+
+void ApplicationManager::cancelTooltip()
+{
+    emit hideTooltip();
 }

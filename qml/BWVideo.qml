@@ -59,7 +59,7 @@ Rectangle {
             id: buttonShowVideoMinimized
             width: 35
             height: 35
-            source: "qrc:/images/remove"
+            source: "qrc:/buttons/remove"
             opacity: 0
             visible: !fullscreen
             smooth: true
@@ -91,11 +91,13 @@ Rectangle {
                     parent.opacity = 1
                     parent.scale = 1.1
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                    ApplicationManager.triggerTooltip("Minimize Video", 10, 0, 1200)
                 }
 
                 onExited: {
                     parent.scale = 1
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    ApplicationManager.cancelTooltip()
                 }
 
                 onClicked: {
@@ -108,7 +110,7 @@ Rectangle {
             id: buttonShowVideoFullscreen
             width: 35
             height: 35
-            source: "qrc:/images/fullscreen"
+            source: "qrc:/buttons/fullscreen"
             opacity: 0
             visible: !fullscreen
             smooth: true
@@ -140,11 +142,13 @@ Rectangle {
                     parent.opacity = 1
                     parent.scale = 1.1
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                    ApplicationManager.triggerTooltip("Fullscreen", 10, 0, 1200)
                 }
 
                 onExited: {
                     parent.scale = 1
                     ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    ApplicationManager.cancelTooltip()
                 }
 
                 onClicked: {

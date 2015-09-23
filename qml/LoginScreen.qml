@@ -2,7 +2,6 @@ import QtQuick 2.2
 import QtQuick.Window 2.0
 import QtQuick.Layouts 1.1
 import BeatWhaleAPI 1.0
-import "qrc:/components/qml/"
 
 Rectangle {
     id: rootRect
@@ -37,6 +36,8 @@ Rectangle {
         color: "white"
         radius: 20
         clip: true
+        border.width: .5
+        border.color: "#50cccccc"
 
         anchors.centerIn: parent
 
@@ -54,7 +55,7 @@ Rectangle {
             }
         }
 
-        TOPSwitch {
+        BWSwitch {
             id: createAccountSwitch
             height: 16
             on: false

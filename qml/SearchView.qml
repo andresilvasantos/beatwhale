@@ -13,6 +13,7 @@ Rectangle {
     property int pageNumber: 0
     property bool searchRequested: false
     property string searchText
+    property bool menuOpened: false
 
 
     signal searchFieldFocus()
@@ -20,9 +21,6 @@ Rectangle {
     signal addVideoToPlayQueue(string id, string title, string subtitle, string thumbnail, string duration)
     signal dragVideosStarted(string dragInfo)
     signal dragVideosFinished()
-
-    signal showTooltip(string text, real x, real y)
-    signal hideTooltip()
 
     function newSearch(search) {
         resultsGrid.videosSelected = []
@@ -56,6 +54,19 @@ Rectangle {
         anchors.fill: parent
         clip: true
 
+        Image {
+            source: "qrc:/images/backgroundPattern"
+            fillMode: Image.PreserveAspectCrop
+            opacity: searchModel.count ? 0 : .1
+            visible: opacity != 0
+            asynchronous: true
+            anchors.fill: parent
+
+            Behavior on opacity {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+            }
+        }
+
         Text {
             id: informativeText
             text: "SEARCH FOR ANYTHING"
@@ -71,7 +82,7 @@ Rectangle {
             opacity: visible ? .5 : 0
 
             Behavior on opacity {
-                NumberAnimation { property: "opacity"; duration: 200; easing.type: Easing.OutSine }
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
             }
 
             MouseArea {
@@ -104,7 +115,7 @@ Rectangle {
 
             anchors {
                 top: parent.top
-                topMargin: 20
+                topMargin: 25
                 horizontalCenter: parent.horizontalCenter
             }
 
@@ -117,7 +128,13 @@ Rectangle {
                 cellHeight: cellSize
                 cacheBuffer: 400
 
+                anchors {
+                    fill: parent
+                    topMargin: topMarginValue
+                }
+
                 property int cellSize: 200
+                property int topMarginValue: topBar.height
                 property var videosSelected: new Array
 
                 contentWidth: width
@@ -150,15 +167,6 @@ Rectangle {
 
                     onAddVideo: {
                         addVideoToPlayQueue(id, title, subtitle, thumbnail, duration)
-                    }
-
-                    onShowTooltip: {
-                        rootRect.showTooltip(text, x + thumbnailDelegate.x + resultsGridHolder.x,
-                                             y + thumbnailDelegate.y + resultsGridHolder.y - resultsGrid.contentY)
-                    }
-
-                    onHideTooltip: {
-                        rootRect.hideTooltip()
                     }
 
                     onSelectionRequest: {
@@ -261,6 +269,152 @@ Rectangle {
         }
     }
 
+    Rectangle {
+        id: topBar
+        width: parent.width
+        height: resultsGrid.videosSelected.length ? 45 : 0
+        color: "#333333"
+        visible: height != 0
+        clip: true
+
+        Behavior on height {
+            NumberAnimation {duration: 200; easing.type: Easing.OutSine}
+        }
+
+        Text {
+            id: screenName
+            text: "Search"
+            color: "white"
+            font.pixelSize: 15
+            font.family: "Open Sans"
+            font.capitalization: Font.AllUppercase
+            font.letterSpacing: 2
+
+            anchors {
+                left: parent.left
+                leftMargin: 20
+                bottom: parent.bottom
+                bottomMargin: 12
+            }
+        }
+
+        BWMediaControlButton {
+            id: buttonHamburgerMenu
+            width: 30
+            height: width
+            source: menuOpened ? "qrc:/buttons/burgerMenuToggled" : "qrc:/buttons/burgerMenu"
+
+            anchors {
+                right: parent.right
+                rightMargin: 20
+                bottom: parent.bottom
+                bottomMargin: 7
+            }
+
+            onClicked: {
+                menuOpened = !menuOpened
+            }
+        }
+    }
+
+    HamburgerMenu {
+        width: 200
+        visible: height != 0
+        opened: menuOpened
+
+        onOpenedChanged: {
+            if(opened) {
+                focus = true
+                optionsModel.clear()
+                optionsModel.append({"name": "Add selected to queue", "danger": false, "active": resultsGrid.videosSelected.length})
+                optionsModel.append({"name": "Add selected to playlist...", "danger": false, "active": resultsGrid.videosSelected.length})
+            }
+        }
+
+        onFocusChanged: {
+            if(!focus) {
+                menuOpened = false
+            }
+        }
+
+        anchors {
+            right: parent.right
+            top: topBar.bottom
+        }
+
+        onOptionClicked: {
+            switch(index)
+            {
+            case 0:
+            default:
+                if(resultsGrid.videosSelected.length) {
+                    for(var i = 0; i < resultsGrid.videosSelected.length; ++i) {
+                        var element = resultsGrid.model.get(resultsGrid.videosSelected[i])
+                        addVideoToPlayQueue(element.id, element.title, element.subtitle, element.thumbnail, element.duration)
+                    }
+                    if(resultsGrid.videosSelected.length > 1) {
+                        ApplicationManager.triggerNotification("Added " + resultsGrid.videosSelected.length + " items to playing queue")
+                    }
+
+                    resultsGrid.videosSelected = []
+                }
+                break;
+            case 1:
+                playlistSelectionPopUp.visible = true
+                playlistSelectionPopUp.forceActiveFocus()
+                topBar.enabled = false
+                mainPanel.enabled = false
+                break;
+            }
+
+            menuOpened = false
+        }
+
+        ListModel {
+            id: optionsModel
+        }
+
+        menuModel: optionsModel
+    }
+
+    PlaylistSelection {
+        id: playlistSelectionPopUp
+        visible: false
+
+        anchors.centerIn: parent
+
+        onAddItemsToPlaylist: {
+            var playlist = PlaylistsManager.playlist(name)
+
+            var ids = new Array
+            var titles = new Array
+            var subTitles = new Array
+            var thumbnails = new Array
+            var durations = new Array
+
+            for(var i = 0; i < resultsGrid.videosSelected.length; ++i) {
+                var videoSelected = resultsGrid.model.get(resultsGrid.videosSelected[i])
+                ids.push(videoSelected.id)
+                titles.push(videoSelected.title)
+                subTitles.push(videoSelected.subtitle)
+                thumbnails.push(videoSelected.thumbnail)
+                durations.push(videoSelected.duration)
+            }
+
+            playlist.addItems(ids, titles, subTitles, thumbnails, durations)
+
+            visible = false
+            topBar.enabled = true
+            mainPanel.enabled = true
+        }
+
+        onCancel: {
+            visible = false
+            topBar.enabled = true
+            mainPanel.enabled = true
+        }
+    }
+
     Connections {
         target: YoutubeAPI
 
@@ -324,6 +478,7 @@ Rectangle {
 
         onSearchFailed: {
             searchRequested = false
+            informativeText.text = "SEARCH ERROR. PLEASE TRY AGAIN"
         }
     }
 }

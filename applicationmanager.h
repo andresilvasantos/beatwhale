@@ -73,7 +73,10 @@ signals:
     void mouseYChanged(int mouseY);
 
     void draggingChanged(bool dragging);
-    void notification(QString message);
+
+    void notification(QString message, int duration);
+    void showTooltip(QString text, qreal displacementX, qreal displacementY, int duration);
+    void hideTooltip();
 
 public slots:
     void loadConfiguration();
@@ -90,7 +93,9 @@ public slots:
     Q_INVOKABLE void dragStarted(const QString& dragInfo);
     Q_INVOKABLE void dragFinished();
 
-    Q_INVOKABLE void triggerNotification(const QString& message);
+    Q_INVOKABLE void triggerNotification(const QString& message, const int &duration = 2500);
+    Q_INVOKABLE void triggerTooltip(const QString& tooltip, const qreal& displacementX, const qreal& displacementY, const int& duration = 1500);
+    Q_INVOKABLE void cancelTooltip();
 
 private slots:
     void loadConfigurationReply();

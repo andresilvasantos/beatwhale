@@ -294,7 +294,7 @@ Rectangle {
             BWButton {
                 id: buttonChangePassword
                 enabled: newPasswordInput.text.length && retypePasswordInput.text.length
-                width: childrenRect.width + 20
+                width: buttonChangePasswordText.width + 20
                 height: 30
                 color: "#656565"
                 hoverColor: "#545454"
@@ -354,7 +354,7 @@ Rectangle {
 
         BWButton {
             id: buttonDeleteAccount
-            width: childrenRect.width + 20
+            width: buttonDeleteAccountText.width + 20
             height: 30
             color: "#66D90F30"
             hoverColor: "#D90F30"

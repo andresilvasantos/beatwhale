@@ -1,7 +1,6 @@
 import QtQuick 2.2
 import QtQuick.Layouts 1.1
 import BeatWhaleAPI 1.0
-import "qrc:/components/qml/"
 
 Rectangle {
     id: registerComponentRect
@@ -450,7 +449,7 @@ Rectangle {
                 }
             }
 
-            TOPButton {
+            BWButton {
                 id: confirmButton
                 width: parent.width * 0.9
                 height: 45

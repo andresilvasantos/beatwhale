@@ -5,10 +5,10 @@ import BeatWhaleAPI 1.0
 
 ApplicationWindow {
     id: mainWindow
-    title: qsTr("BeatWhale vAlpha (" + ApplicationManager.version() + ")")
-    width: 1000
+    title: qsTr("BeatWhale vBeta (" + ApplicationManager.version() + ")")
+    width: 1024
     height: 600
-    minimumWidth: 800
+    minimumWidth: 1024
     minimumHeight: 600
     color: "#cccccc"
 

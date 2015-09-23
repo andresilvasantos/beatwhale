@@ -42,12 +42,16 @@ public:
     void removeTimer(QNetworkReply *reply);
 
 
+    Q_INVOKABLE void setMusicOnlyFilter(const bool& onlyMusic);
     Q_INVOKABLE void setOrderFilter(OrderFilter orderFilter);
     Q_INVOKABLE void setDurationFilter(DurationFilter durationFilter);
 
 signals:
     void searchSuccess(const QString& documentString);
     void searchFailed();
+
+    void suggestionSuccess(const QString& id, const QString& title, const QString& thumbnail, const QString& duration);
+    void suggestionFailed();
 
     void videoUrlFailed(const QString& id);
     void videoUrlSuccess(const QString& id, const QString& url);
@@ -57,8 +61,8 @@ signals:
 public slots:
     void ignoreSSLErrors(QNetworkReply *reply, QList<QSslError> errors);
 
-    Q_INVOKABLE void search(const QString& search);
-    Q_INVOKABLE void search(const QString& search, const QString& nextPageToken);
+    Q_INVOKABLE void search(const QString& search, const QString& nextPageToken = "");
+    Q_INVOKABLE void suggestion(const QString& id, const QStringList excludeSuggestionIDs);
     Q_INVOKABLE void videoUrl(const QString& videoID);
     Q_INVOKABLE void videoDuration(const QString& videoID);
 
@@ -71,6 +75,15 @@ private slots:
     void searchVideosDurationFinished();
     void searchVideosDurationError(QNetworkReply::NetworkError error);
     void searchVideosDurationTimeout();
+
+    void suggestionFinished();
+    void suggestionError(QNetworkReply::NetworkError error);
+    void suggestionTimeout();
+
+    void suggestionVideoDuration(const QString& id, const QString &title, const QString &thumbnail);
+    void suggestionVideoDurationFinished();
+    void suggestionVideoDurationError(QNetworkReply::NetworkError error);
+    void suggestionVideoDurationTimeout();
 
     void videoUrlFinished();
     void videoUrlError();

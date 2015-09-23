@@ -43,7 +43,7 @@ bool MouseEventFilter::eventFilter(QObject *obj, QEvent *event)
                 int newWidth = window->width() + diffPosition.x();
                 int newHeight = window->height() + diffPosition.y();
 
-                if(newWidth < 800) newWidth = 800;
+                if(newWidth < 1024) newWidth = 1024;
                 if(newHeight < 600) newHeight = 600;
 
                 window->setGeometry(window->position().x(), window->position().y(), newWidth, newHeight);

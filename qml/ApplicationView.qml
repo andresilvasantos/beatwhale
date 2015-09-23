@@ -14,6 +14,7 @@ Rectangle {
     property int currentVideoIndex: -1
     property bool shuffleEnabled: false
     property bool repeatEnabled: false
+    property bool suggestionRequested: false
     property bool playingQueueMinEnabled: false
     property var shuffleList: new Array
 
@@ -40,6 +41,14 @@ Rectangle {
         ApplicationManager.triggerNotification(message)
 
         currentVideoIndex = index
+
+        if(controlsBar.tvMode && index >= playingModel.count - 1 && (!shuffleEnabled || !shuffleList.length)) {
+            if(shuffleEnabled) {
+                controlsBar.shuffle = false
+            }
+
+            newSuggestion()
+        }
     }
 
     function removeVideo(index) {
@@ -52,6 +61,10 @@ Rectangle {
             mediaPlayer.stop()
             currentVideoIndex = -1
             return
+        }
+
+        if(controlsBar.tvMode && index >= playingModel.count - 1) {
+            newSuggestion()
         }
 
         if(currentVideoIndex === index) playVideo(index)
@@ -153,6 +166,23 @@ Rectangle {
         ApplicationManager.dragFinished()
     }
 
+    function newSuggestion() {
+        if(!playingModel.count || suggestionRequested) return
+
+        suggestionRequested = true
+
+        var element = playingModel.get(Math.floor((Math.random() * (playingModel.count - 1))))
+        var queueList = new Array
+
+        for(var i = 0; i < playingModel.count; ++i) {
+            queueList.push(playingModel.get(i).id)
+        }
+
+        YoutubeAPI.suggestion(element.id, queueList)
+
+        console.log("New suggestion based on: " + element.title + "  " + element.subtitle)
+    }
+
     ListModel {
         id: playingModel
     }
@@ -232,23 +262,50 @@ Rectangle {
                 }
             }
 
+            onAddPlaylistToPlayQueue: {
+                var needsToPlay = false
+                if(playingModel.count == 0) needsToPlay = true
+
+
+                var playlist = PlaylistsManager.playlist(name)
+                var items = playlist.items()
+
+                for(var i = 0; i < items.length; ++i) {
+                    var item = items[i]
+
+                    playingModel.append({"id": item.id, "title": item.title, "subtitle": item.subTitle,
+                                            "thumbnail": item.thumbnail, "duration": item.duration})
+                    UserManager.addedToQueue(item.id, item.title, item.subTitle, item.thumbnail, item.duration)
+
+                    if(items.length === 1 && !needsToPlay) {
+                        var message
+                        if(item.subTitle.length) message = "Added to playing queue: " + item.title + " - " + item.subTitle
+                        else message = "Added to playing queue: " + item.title
+                        ApplicationManager.triggerNotification(message)
+                    }
+                }
+
+                if(shuffleEnabled) {
+                    generateShuffleList()
+                }
+
+                if(needsToPlay) {
+                    playNextVideo()
+                }
+                else {
+                    if(items.length > 1)
+                    {
+                        ApplicationManager.triggerNotification("Added " + items.length + " items to playing queue")
+                    }
+                }
+            }
+
             onDragVideoStarted: {
                 startVideosDrag(dragInfo)
             }
 
             onDragVideoFinished: {
                 finishVideosDrag()
-            }
-
-            onShowTooltip: {
-                tooltip.displayText = text
-                tooltip.x = x
-                tooltip.y = y + mainPanel.y + topBar.height
-                tooltip.opacity = 1
-            }
-
-            onHideTooltip: {
-                tooltip.opacity = 0
             }
         }
 
@@ -463,10 +520,28 @@ Rectangle {
 
         onStateChanged: {
             if(state == VlcPlayer.Ended || state == VlcPlayer.Error) {
-                if(playingModel.count == 0 || (shuffleEnabled && !shuffleList.length && !repeatEnabled) ||
-                        (currentVideoIndex >= playingModel.count - 1 && !repeatEnabled)) return
 
-                playNextVideo()
+                if(state == VlcPlayer.Error) {
+                    if(currentVideoIndex == -1) return
+
+                    var element = playingModel.get(currentVideoIndex)
+
+                    var message
+                    if(element.subtitle.length) message = "Problem playing item: " + element.title + " - " + element.subtitle
+                    else message = "Problem playing item: " + element.title
+                    ApplicationManager.triggerNotification(message)
+
+                    if(playingModel.count == 0 || (shuffleEnabled && !shuffleList.length && !repeatEnabled) ||
+                            (currentVideoIndex >= playingModel.count - 1 && !repeatEnabled)) return
+
+                    problemPlayingVideoTimer.start()
+                }
+                else {
+                    if(playingModel.count == 0 || (shuffleEnabled && !shuffleList.length && !repeatEnabled) ||
+                            (currentVideoIndex >= playingModel.count - 1 && !repeatEnabled)) return
+
+                    playNextVideo()
+                }
             }
         }
     }
@@ -549,6 +624,23 @@ Rectangle {
         onQueueOpenedChanged: {
             playingQueueMinEnabled = queueOpened
         }
+
+        onTvModeChanged: {
+            if(tvMode) {
+                if(!playingModel.count) {
+                    ApplicationManager.triggerNotification("Before turning TV Mode on, please add videos to your Playing Queue.", 3500)
+                    tvMode = false
+                    return
+                }
+
+                ApplicationManager.triggerNotification("TV Mode is on.\nVideos will be automatically added to your Playing Queue based on what you are listening.", 4500)
+            }
+
+            if(tvMode && currentVideoIndex >= 0 && currentVideoIndex >= playingModel.count - 1) {
+                repeat = false
+                newSuggestion()
+            }
+        }
     }
 
     Keys.onPressed: {
@@ -608,10 +700,39 @@ Rectangle {
         id: tooltip
         visible: opacity != 0
         opacity: 0
+        x: invertX ? ApplicationManager.mouseX - displacementX - tooltip.childrenRect.width : ApplicationManager.mouseX + displacementX
+        y: ApplicationManager.mouseY + displacementY
+
+        property int displacementX: 0
+        property int displacementY: 0
+        property bool invertX: false
 
         onXChanged: {
-            tooltip.width = rootRect.width - (x + 20)
             tooltip.height = rootRect.height - (y + 20)
+        }
+
+        onDisplayTextChanged: {
+            invertX = false
+        }
+
+        Connections {
+            target: ApplicationManager
+
+            onMouseXChanged: {
+                if(ApplicationManager.mouseX + tooltip.displacementX + tooltip.childrenRect.width > rootRect.width) {
+                     tooltip.invertX = true
+                }
+                else tooltip.invertX = false
+            }
+        }
+
+        Timer {
+            id: tooltipTimer
+            interval: 1500
+
+            onTriggered: {
+                tooltip.opacity = 1
+            }
         }
     }
 
@@ -656,7 +777,22 @@ Rectangle {
             notificationTimer.stop()
             notificationText.text = message
             notification.height = notificationText.contentHeight + 30
+            notificationTimer.interval = duration
             notificationTimer.start()
+        }
+
+        onShowTooltip: {
+            tooltipTimer.stop()
+            tooltip.displayText = text
+            tooltip.displacementX = displacementX
+            tooltip.displacementY = displacementY
+            tooltipTimer.interval = duration
+            tooltipTimer.start()
+        }
+
+        onHideTooltip: {
+            tooltipTimer.stop()
+            tooltip.opacity = 0
         }
     }
 
@@ -682,17 +818,6 @@ Rectangle {
     Connections {
         target: listsViewLoader.item && listsViewLoader.visible ? listsViewLoader.item : searchViewLoader.item
         ignoreUnknownSignals: true
-
-        onShowTooltip: {
-            tooltip.displayText = text
-            tooltip.x = mainPanel.x + x
-            tooltip.y = mainPanel.y + splitView.y + y// - resultsGrid.contentY + resultsGrid.topMarginValue
-            tooltip.opacity = 1
-        }
-
-        onHideTooltip: {
-            tooltip.opacity = 0
-        }
 
         onSearchFieldFocus: {
             topBar.searchFocus()
@@ -733,6 +858,12 @@ Rectangle {
             removeVideo(index)
         }
 
+        onClearQueue: {
+            playingModel.clear()
+            UserManager.queueCleared()
+            currentVideoIndex = -1
+        }
+
         onAddAllToQueue: {
             var needsToPlay = false
             if(playingModel.count == 0) needsToPlay = true
@@ -742,6 +873,13 @@ Rectangle {
                 playingModel.append({"id": item.id, "title": item.title, "subtitle": item.subtitle,
                                         "thumbnail": item.thumbnail, "duration": item.duration})
                 UserManager.addedToQueue(item.id, item.title, item.subtitle, item.thumbnail, item.duration)
+
+                if(model.count == 1 && !needsToPlay) {
+                    var message
+                    if(item.subtitle.length) message = "Added to playing queue: " + item.title + " - " + item.subtitle
+                    else message = "Added to playing queue: " + item.title
+                    ApplicationManager.triggerNotification(message)
+                }
             }
 
             if(shuffleEnabled) {
@@ -750,6 +888,12 @@ Rectangle {
 
             if(needsToPlay) {
                 playNextVideo()
+            }
+            else {
+                if(model.count > 1)
+                {
+                    ApplicationManager.triggerNotification("Added " + model.count + " items to playing queue")
+                }
             }
         }
 
@@ -788,6 +932,49 @@ Rectangle {
                 ApplicationManager.triggerNotification(message)
                 problemPlayingVideoTimer.start()
             }
+        }
+
+        onSuggestionSuccess: {
+            var videoTitle;
+            var videoSubTitle;
+
+            if(title) {
+                var count = 3
+                var separatorIndex = title.indexOf(" - ")
+                if(separatorIndex === -1) {
+                    count = 2
+                    separatorIndex = title.indexOf(", ")
+
+                    if(separatorIndex === -1) {
+                        count = 1
+                        separatorIndex = title.indexOf(" \"")
+
+                        if(separatorIndex === 0) separatorIndex = -1
+                    }
+                }
+
+                if(separatorIndex === -1) {
+                    videoTitle = title
+                    videoSubTitle = ""
+                }
+                else {
+                    var artist = title.substring(0, separatorIndex)
+                    var trackName = title.substring(separatorIndex + count, title.length)
+
+                    videoTitle = artist
+                    videoSubTitle = trackName
+                }
+            }
+
+            playingModel.append({"id": id, "title": videoTitle, "subtitle": videoSubTitle, "thumbnail": thumbnail, "duration": duration})
+            UserManager.addedToQueue(id, videoTitle, videoSubTitle, thumbnail, duration)
+
+            suggestionRequested = false
+        }
+
+        onSuggestionFailed: {
+            if(mediaPlayer.state === VlcPlayer.Playing ||  mediaPlayer.state === VlcPlayer.Paused) newSuggestion()
+            else suggestionRequested = false
         }
     }
 

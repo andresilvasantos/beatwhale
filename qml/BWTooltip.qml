@@ -10,6 +10,8 @@ Item {
         width: tooltipText.contentWidth + 10
         height: tooltipText.contentHeight + 10
         radius: 5
+        border.width: .5
+        border.color: "#50cccccc"
     }
 
     Text {

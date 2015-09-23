@@ -3,6 +3,7 @@
 #include "playlist.h"
 #include "applicationmanager.h"
 #include "videoitem.h"
+#include "youtubeapimanager.h"
 
 #include <databasemanager.h>
 #include <jsonhelper.h>
@@ -40,12 +41,12 @@ public:
 
     QNetworkAccessManager *networkManager;
 
+    QSettings localSettings;
+
     QString username;
     QString password;
     QString newPassword;
     QString email;
-
-    QSettings localSettings;
 
     QString currentRevision;
     QString currentSettingsRevision;
@@ -137,6 +138,57 @@ void UserManager::setRememberCredentials(const bool &remember)
         d->localSettings.setValue("login/remember", false);
         d->localSettings.remove("login/credentials");
     }
+}
+
+bool UserManager::musicOnlyFilter() const
+{
+    Q_D(const UserManager);
+    return d->localSettings.value(d->username + "-general/music_only_filter", false).toBool();
+}
+
+void UserManager::setMusicOnlyFilter(const bool &musicOnly)
+{
+    Q_D(UserManager);
+
+    YoutubeAPIManager::singleton()->setMusicOnlyFilter(musicOnly);
+    d->localSettings.beginGroup(d->username + "-general");
+    d->localSettings.setValue("music_only_filter", musicOnly);
+    d->localSettings.endGroup();
+    emit musicOnlyFilterChanged(musicOnly);
+}
+
+int UserManager::orderFilter() const
+{
+    Q_D(const UserManager);
+    return d->localSettings.value(d->username + "-general/order_filter", 0).toInt();
+}
+
+void UserManager::setOrderFilter(const int &orderFilter)
+{
+    Q_D(UserManager);
+
+    YoutubeAPIManager::singleton()->setOrderFilter(YoutubeAPIManager::OrderFilter(orderFilter));
+    d->localSettings.beginGroup(d->username + "-general");
+    d->localSettings.setValue("order_filter", orderFilter);
+    d->localSettings.endGroup();
+    emit orderFilterChanged(orderFilter);
+}
+
+int UserManager::durationFilter() const
+{
+    Q_D(const UserManager);
+    return d->localSettings.value(d->username + "-general/duration_filter", 0).toInt();
+}
+
+void UserManager::setDurationFilter(const int &durationFilter)
+{
+    Q_D(UserManager);
+
+    YoutubeAPIManager::singleton()->setDurationFilter(YoutubeAPIManager::DurationFilter(durationFilter));
+    d->localSettings.beginGroup(d->username + "-general");
+    d->localSettings.setValue("duration_filter", durationFilter);
+    d->localSettings.endGroup();
+    emit durationFilterChanged(durationFilter);
 }
 
 QString UserManager::generateActivationCode()
@@ -446,6 +498,10 @@ void UserManager::loginReply(const bool &success, const bool& authProblem)
             emit queueItemAdded(&item);
         }
     }
+
+    YoutubeAPIManager::singleton()->setOrderFilter(YoutubeAPIManager::OrderFilter(orderFilter()));
+    YoutubeAPIManager::singleton()->setDurationFilter(YoutubeAPIManager::DurationFilter(durationFilter()));
+    YoutubeAPIManager::singleton()->setMusicOnlyFilter(musicOnlyFilter());
 }
 
 void UserManager::logout()
@@ -607,15 +663,22 @@ void UserManager::documentUpdate(const bool &success, const QString &id, const Q
     {
         qDebug() << "There was a problem fecthing document from cloud";
 
+        if(d->firstTime)
+        {
+            changesMade(id, d->currentRevision);
+            return;
+        }
+
         documentUpdatedFeedback(false, "videos");
         return;
     }
 
-    d->documentReadyForUpload = false;
 
     d->videosDocument = document;
 
     uploadDocument();
+
+    d->documentReadyForUpload = false;
 
     if(d->firstTime)
     {

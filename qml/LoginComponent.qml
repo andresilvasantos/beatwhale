@@ -1,7 +1,6 @@
 import QtQuick 2.2
 import QtQuick.Layouts 1.1
 import BeatWhaleAPI 1.0
-import "qrc:/components/qml/"
 
 Rectangle {
     id: loginComponentRect
@@ -172,7 +171,7 @@ Rectangle {
                 }
             }
 
-            TOPSwitch {
+            BWSwitch {
                 id: rememberSwitch
                 height: 16
                 on: UserManager.rememberCredentials()

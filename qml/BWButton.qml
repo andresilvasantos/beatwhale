@@ -5,6 +5,7 @@ Rectangle {
     id: buttonRectangle
 
     signal clicked
+    signal doubleClicked
     signal hovered
     signal hoveredOut
 
@@ -15,7 +16,7 @@ Rectangle {
     property bool checked: false
 
     MouseArea {
-        id: mouseArea;
+        id: mouseArea
         anchors.fill: parent
         hoverEnabled: true
 
@@ -36,6 +37,10 @@ Rectangle {
             buttonRectangle.clicked()
 
             if(!checkable) stateTimer.start()
+        }
+
+        onDoubleClicked: {
+            buttonRectangle.doubleClicked()
         }
     }
 

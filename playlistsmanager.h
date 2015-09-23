@@ -25,7 +25,7 @@ public:
     Q_INVOKABLE void removeFavorites(const QStringList& ids);
     Q_INVOKABLE QList<QObject*> favorites() const;
 
-    Q_INVOKABLE Playlist* createPlaylist();
+    Q_INVOKABLE Playlist* createPlaylist(const QString& name = "Unnamed Playlist");
     Q_INVOKABLE bool deletePlaylist(const QString& name);
 
     Q_INVOKABLE QList<QString> playlistNames() const;

@@ -5,6 +5,7 @@ import BeatWhaleAPI 1.0
 Rectangle {
 
     property bool videoMaximized: false
+    property bool showSearchFilters: false
 
     signal searchRequested(string search)
     signal settingsRequested()
@@ -44,7 +45,7 @@ Rectangle {
             id: logoImage
             width: 20
             height: width
-            source: "qrc:/images/icon"
+            source: "qrc:/images/logoSymbol"
             asynchronous: true
             fillMode: Image.PreserveAspectFit
             smooth: false
@@ -129,95 +130,230 @@ Rectangle {
         }
     }
 
-    BWButton {
-        id: buttonOrderFilter
-        width: buttonOrderFilterText.width + 20
-        height: 25
-        color: "#ebeff1"
-        hoverColor: "#5000addc"
-        selectedColor: "#5000addc"
-        radius: 5
+    Image {
+        id: searchFiltersButton
+        width: 20
+        height: width
+        source: "qrc:/buttons/addDark"
+        sourceSize.width: 50
+        sourceSize.height: 50
+        rotation: showSearchFilters ? 45 : 0
+        opacity: .5
 
         anchors {
             left: searchForm.right
-            leftMargin: 20
+            leftMargin: 10
             verticalCenter: parent.verticalCenter
         }
 
-        property int orderFilter: -1
-
-        onClicked: {
-            ++orderFilter
-            if(orderFilter > 2) orderFilter = -1
-
-            YoutubeAPI.setOrderFilter(orderFilter + 1)
+        Behavior on rotation {
+            NumberAnimation {duration: 200; easing.type: Easing.OutSine}
         }
 
-        Text {
-            id: buttonOrderFilterText
-            text: {
-                switch(buttonOrderFilter.orderFilter) {
-                case 0:
-                    return "Relevance"
-                case 1:
-                    return "Date"
-                case 2:
-                    return "Rating"
-                default:
-                    return "View Count"
-                }
-            }
-            color: "#aaaaaa"
-            font.pixelSize: 13
-            font.family: "Open Sans"
+        Behavior on opacity {
+            NumberAnimation {duration: 200; easing.type: Easing.OutSine}
+        }
 
-            anchors.centerIn: parent
+        Behavior on scale {
+            NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+
+            onEntered: {
+                ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                ApplicationManager.triggerTooltip(showSearchFilters ? "Hide Search Filters" : "Show Search Filters", 15, -10, 1200)
+                parent.opacity = 1
+            }
+
+            onExited: {
+                ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                ApplicationManager.cancelTooltip()
+                parent.opacity = .5
+            }
+
+            onClicked: {
+                showSearchFilters = !showSearchFilters
+                ApplicationManager.cancelTooltip()
+            }
+
+            onPressed: {
+                parent.scale = 1.1
+            }
+
+            onReleased: {
+                parent.scale = 1
+            }
         }
     }
 
-    BWButton {
-        id: buttonDurationFilter
-        width: buttonDurationFilterText.width + 20
-        height: 25
-        color: "#ebeff1"
-        hoverColor: "#5000addc"
-        selectedColor: "#5000addc"
-        radius: 5
+    Item {
+        id: searchFilters
+        width: showSearchFilters ? 300 : 0
+        height: parent.height
+        clip: true
 
         anchors {
-            left: buttonOrderFilter.right
-            leftMargin: 20
-            verticalCenter: parent.verticalCenter
+            left: searchFiltersButton.right
+            leftMargin: 10
         }
 
-        property int durationFilter: -1
-
-        onClicked: {
-            ++durationFilter
-            if(durationFilter > 2) durationFilter = -1
-
-            YoutubeAPI.setDurationFilter(durationFilter + 1)
+        Behavior on width {
+            NumberAnimation {duration: 200; easing.type: Easing.OutSine}
         }
 
-        Text {
-            id: buttonDurationFilterText
-            text: {
-                switch(buttonDurationFilter.durationFilter) {
-                case 0:
-                    return "Short"
-                case 1:
-                    return "Medium"
-                case 2:
-                    return "Long"
-                default:
-                    return "Any"
+        BWButton {
+            id: buttonOrderFilter
+            width: buttonOrderFilterText.width + 20
+            height: 25
+            color: "#ebeff1"
+            hoverColor: "#5000addc"
+            selectedColor: "#5000addc"
+            radius: 5
+
+            anchors {
+                verticalCenter: parent.verticalCenter
+            }
+
+            property int orderFilter: UserManager.orderFilter
+
+            onHovered: {
+                ApplicationManager.triggerTooltip("Order Search Filter", 15, -10, 1200)
+            }
+
+            onHoveredOut: {
+                ApplicationManager.cancelTooltip()
+            }
+
+            onClicked: {
+                ++orderFilter
+                if(orderFilter > 3) orderFilter = 0
+
+                UserManager.orderFilter = orderFilter
+            }
+
+            Text {
+                id: buttonOrderFilterText
+                text: {
+                    switch(buttonOrderFilter.orderFilter) {
+                    case 1:
+                        return "Relevance"
+                    case 2:
+                        return "Date"
+                    case 3:
+                        return "Rating"
+                    default:
+                        return "View Count"
+                    }
+                }
+                color: "#aaaaaa"
+                font.pixelSize: 13
+                font.family: "Open Sans"
+
+                anchors.centerIn: parent
+            }
+        }
+
+        BWButton {
+            id: buttonDurationFilter
+            width: buttonDurationFilterText.width + 20
+            height: 25
+            color: "#ebeff1"
+            hoverColor: "#5000addc"
+            selectedColor: "#5000addc"
+            radius: 5
+
+            anchors {
+                left: buttonOrderFilter.right
+                leftMargin: 20
+                verticalCenter: parent.verticalCenter
+            }
+
+            property int durationFilter: UserManager.durationFilter
+
+            onHovered: {
+                ApplicationManager.triggerTooltip("Duration Search Filter", 15, -10, 1200)
+            }
+
+            onHoveredOut: {
+                ApplicationManager.cancelTooltip()
+            }
+
+            onClicked: {
+                ++durationFilter
+                if(durationFilter > 3) durationFilter = 0
+
+                UserManager.durationFilter = durationFilter
+            }
+
+            Text {
+                id: buttonDurationFilterText
+                text: {
+                    switch(buttonDurationFilter.durationFilter) {
+                    case 1:
+                        return "Short"
+                    case 2:
+                        return "Medium"
+                    case 3:
+                        return "Long"
+                    default:
+                        return "Any"
+                    }
+                }
+                color: "#aaaaaa"
+                font.pixelSize: 13
+                font.family: "Open Sans"
+
+                anchors.centerIn: parent
+            }
+        }
+
+        BWButton {
+            id: buttonOnlyMusicFilter
+            width: buttonOnlyMusicFilterText.width + 20
+            height: 25
+            color: "#ebeff1"
+            hoverColor: "#5000addc"
+            selectedColor: "#00addc"
+            radius: 5
+            checkable: true
+            checked: UserManager.musicOnlyFilter
+
+            anchors {
+                left: buttonDurationFilter.right
+                leftMargin: 20
+                verticalCenter: parent.verticalCenter
+            }
+
+            onHovered: {
+                ApplicationManager.triggerTooltip("Music Only Search Filter", 15, -10, 1200)
+            }
+
+            onHoveredOut: {
+                ApplicationManager.cancelTooltip()
+            }
+
+            onClicked: {
+                checked = !checked
+
+                UserManager.musicOnlyFilter = checked
+            }
+
+            Text {
+                id: buttonOnlyMusicFilterText
+                text: "Only Music"
+                color: parent.checked ? "white" : "#aaaaaa"
+                font.pixelSize: 13
+                font.family: "Open Sans"
+
+                anchors.centerIn: parent
+
+                Behavior on color {
+                    ColorAnimation { duration: 200; easing.type: Easing.OutSine }
                 }
             }
-            color: "#aaaaaa"
-            font.pixelSize: 13
-            font.family: "Open Sans"
-
-            anchors.centerIn: parent
         }
     }
 

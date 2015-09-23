@@ -9,15 +9,13 @@ Rectangle {
     property var playlistItem
     property bool controlKeyPressed: false
     property bool shiftKeyPressed: false
+    property bool menuOpened: false
 
     signal playVideoAndAddToQueue(string id, string title, string subtitle, string thumbnail, string duration)
     signal addVideoToPlayQueue(string id, string title, string subtitle, string thumbnail, string duration)
     signal addAllToQueue(var model)
     signal dragVideosStarted(string dragInfo)
     signal dragVideosFinished()
-
-    signal showTooltip(string text, real x, real y)
-    signal hideTooltip()
 
     function populateModel() {
         resultsGrid.videosSelected = []
@@ -53,6 +51,9 @@ Rectangle {
     }
 
     onPlaylistItemChanged: {
+        playlistInputNameHolder.visible = false
+        screenName.visible = true
+
         if(playlistItem) {
             playlistConnection.target = playlistItem
             screenName.text = playlistItem.name
@@ -74,8 +75,20 @@ Rectangle {
         id: mainPanel
         color: "#20e7ebee"
         anchors.fill: parent
-
         clip: true
+
+        Image {
+            source: "qrc:/images/backgroundPattern"
+            fillMode: Image.PreserveAspectCrop
+            opacity: playlistModel.count ? 0 : .1
+            visible: opacity != 0
+            asynchronous: true
+            anchors.fill: parent
+
+            Behavior on opacity {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+            }
+        }
 
         Text {
             id: informativeText
@@ -162,15 +175,6 @@ Rectangle {
                     onRemoveVideo: {
                         resultsGrid.videosSelected = []
                         playlistItem.removeItem(id)
-                    }
-
-                    onShowTooltip: {
-                        rootRect.showTooltip(text, x + thumbnailDelegate.x + resultsGridHolder.x,
-                                             y + thumbnailDelegate.y + resultsGridHolder.y - resultsGrid.contentY + resultsGrid.topMarginValue)
-                    }
-
-                    onHideTooltip: {
-                        rootRect.hideTooltip()
                     }
 
                     onSelectionRequest: {
@@ -283,15 +287,115 @@ Rectangle {
     Rectangle {
         id: topBar
         width: parent.width
-        height: 50
-        color: "#bb333333"
+        height: 45
+        color: "#333333"
+        clip: true
+
+        Rectangle {
+            id: editNameIconHolder
+            color: hovered ? "#20cccccc" : "#10cccccc"
+            radius: width * .5
+            width: editNameIcon.width + 14
+            height: editNameIcon.height + 14
+
+            anchors {
+                right: screenName.right
+                rightMargin: -50
+                verticalCenter: parent.verticalCenter
+            }
+
+            property bool hovered: false
+
+            Behavior on width {
+                NumberAnimation {duration: 200; easing.type: Easing.OutSine}
+            }
+
+            Behavior on color {
+                ColorAnimation {duration: 200; easing.type: Easing.OutSine}
+            }
+
+            Binding {
+                target: editNameIconHolder;
+                property: "width";
+                value: editNameIcon.width + 14 + screenName.width - editNameIconHolder.anchors.rightMargin
+                when: editNameIconHolder.hovered || playlistInputNameHolder.visible
+            }
+
+            Binding {
+                target: editNameIconHolder;
+                property: "color";
+                value: "#20cccccc"
+                when: editNameIconHolder.hovered || playlistInputNameHolder.visible
+            }
+
+            Binding {
+                target: editNameIcon;
+                property: "opacity";
+                value: .8
+                when: editNameIconHolder.hovered || playlistInputNameHolder.visible
+            }
+
+            Image {
+                id: editNameIcon
+                source: "qrc:/icons/edit"
+                width: 18
+                height: width
+                opacity: opacityNormal
+
+                property real opacityNormal: .4
+
+                anchors {
+                    right: parent.right
+                    rightMargin: 7
+                    verticalCenter: parent.verticalCenter
+                }
+
+                Behavior on opacity {
+                    NumberAnimation {duration: 200; easing.type: Easing.OutSine}
+                }
+
+                Behavior on scale {
+                    NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+
+                    onEntered: {
+                        ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                        editNameIconHolder.hovered = true
+                    }
+
+                    onExited: {
+                        ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                        editNameIconHolder.hovered = false
+                    }
+
+                    onClicked: {
+                        playlistInputName.text = screenName.text
+                        playlistInputNameHolder.visible = true
+                        playlistInputName.forceActiveFocus()
+                        screenName.visible = false
+                    }
+
+                    onPressed: {
+                        parent.scale = 1.1
+                    }
+
+                    onReleased: {
+                        parent.scale = 1
+                    }
+                }
+            }
+        }
 
         Text {
             id: screenName
             text: playlistItem ? playlistItem.name : ""
             color: "white"
             font.pixelSize: 15
-//            font.family: "Open Sans"
+            font.family: "Open Sans"
             font.capitalization: Font.AllUppercase
             font.letterSpacing: 2
 
@@ -300,40 +404,27 @@ Rectangle {
                 leftMargin: 20
                 verticalCenter: parent.verticalCenter
             }
-
-            MouseArea {
-                anchors.fill: parent
-
-                onClicked: {
-                    playlistInputName.text = screenName.text
-                    playlistInputNameHolder.visible = true
-                    playlistInputName.forceActiveFocus()
-                    screenName.visible = false
-                }
-            }
         }
 
         Rectangle {
             id: playlistInputNameHolder
-            width: 300
-            height: 30
-            color: "white"
+            color: "#464646"
             radius: 5
             visible: false
 
             anchors {
-                left: parent.left
-                leftMargin: 20
-                verticalCenter: parent.verticalCenter
+                fill: screenName
+                topMargin: -4
+                bottomMargin: -4
             }
 
             TextInput {
                 id: playlistInputName
                 font.pixelSize: 14
-//                font.family: "Open Sans"
+                font.family: "Open Sans"
                 font.letterSpacing: 2
                 clip: true
-                color: "#333333"
+                color: "white"
                 selectByMouse: true
                 selectionColor: "#666666"
                 validator: RegExpValidator { regExp:/^[A-Za-z0-9].{0,30}$/i }
@@ -346,11 +437,19 @@ Rectangle {
                     verticalCenter: parent.verticalCenter
                 }
 
+                onFocusChanged: {
+                    if(parent.visible && !focus) {
+                        editNameIconHolder.hovered = false
+                        playlistInputNameHolder.visible = false
+                        screenName.visible = true
+                    }
+                }
+
                 function playlistNameChanged() {
                     var playlists = PlaylistsManager.playlistNames();
 
                     if(playlistItem.name === text || !text.length) {
-                        playlistInputNameHolder.focus = false
+                        playlistInputName.focus = false
                         playlistInputNameHolder.visible = false
                         screenName.visible = true
                         return
@@ -373,7 +472,7 @@ Rectangle {
                         ApplicationManager.triggerNotification("A playlist named " + text + " already exists")
                     }
 
-                    playlistInputNameHolder.focus = false
+                    playlistInputName.focus = false
                     playlistInputNameHolder.visible = false
                     screenName.visible = true
                 }
@@ -387,7 +486,7 @@ Rectangle {
                 }
 
                 Keys.onEscapePressed: {
-                    playlistInputNameHolder.focus = false
+                    playlistInputName.focus = false
                     playlistInputNameHolder.visible = false
                     screenName.visible = true
                 }
@@ -404,7 +503,7 @@ Rectangle {
             border.width: 1
 
             anchors {
-                right: buttonDelete.left
+                right: buttonSort.left
                 rightMargin: 20
                 verticalCenter: parent.verticalCenter
             }
@@ -424,7 +523,7 @@ Rectangle {
                     left: parent.left
                     leftMargin: 10
                     right: parent.right
-                    rightMargin: 10
+                    rightMargin: searchIcon.width + 10
 
                     verticalCenter: parent.verticalCenter
                 }
@@ -433,37 +532,21 @@ Rectangle {
                     if(text.length) populateFilterModel()
                 }
             }
-        }
 
-        BWButton {
-            id: buttonDelete
-            color: "#656565"
-            hoverColor: "#D90F30"
-            selectedColor: "#F24261"
-            width: buttonDeleteText.width + 20
-            height: 28
-            radius: 5
+            Image {
+                id: searchIcon
+                width: 15
+                height: width
+                source: "qrc:/icons/search"
+                sourceSize.width: width
+                sourceSize.height: height
+                smooth: false
 
-            anchors {
-                right: buttonSort.left
-                rightMargin: 20
-                verticalCenter: parent.verticalCenter
-            }
-
-            Text {
-                id: buttonDeleteText
-                text: "Delete Playlist"
-                font.family: "Open Sans"
-                color: "white"
-                font.pixelSize: 14
-
-                anchors.centerIn: parent
-            }
-
-            onClicked: {
-                popupDeletePlaylist.visible = true
-                mainPanel.enabled = false
-                topBar.enabled = false
+                anchors {
+                    right: parent.right
+                    rightMargin: 5
+                    verticalCenter: parent.verticalCenter
+                }
             }
         }
 
@@ -479,7 +562,7 @@ Rectangle {
             property int sorting: 0
 
             anchors {
-                right: buttonAddQueue.left
+                right: buttonHamburgerMenu.left
                 rightMargin: 20
                 verticalCenter: parent.verticalCenter
             }
@@ -518,14 +601,11 @@ Rectangle {
             }
         }
 
-        BWButton {
-            id: buttonAddQueue
-            color: "#656565"
-            hoverColor: "#545454"
-            selectedColor: "#898989"
-            width: buttonAddQueueText.width + 20
-            height: 28
-            radius: 5
+        BWMediaControlButton {
+            id: buttonHamburgerMenu
+            width: 30
+            height: width
+            source: menuOpened ? "qrc:/buttons/burgerMenuToggled" : "qrc:/buttons/burgerMenu"
 
             anchors {
                 right: parent.right
@@ -533,28 +613,128 @@ Rectangle {
                 verticalCenter: parent.verticalCenter
             }
 
-            Text {
-                id: buttonAddQueueText
-                text: "Add to Queue"
-                font.family: "Open Sans"
-                color: "white"
-                font.pixelSize: 14
-
-                anchors.centerIn: parent
-            }
-
             onClicked: {
-                addAllToQueue(playlistModel)
+                menuOpened = !menuOpened
             }
         }
     }
 
-    Connections {
-        id: playlistConnection
-        ignoreUnknownSignals: true
+    HamburgerMenu {
+        width: 200
+        visible: height != 0
+        opened: menuOpened
 
-        onPlaylistChanged: {
-            populateModel()
+        onOpenedChanged: {
+            if(opened) {
+                focus = true
+                optionsModel.clear()
+                optionsModel.append({"name": "Add all to queue", "danger": false, "active": resultsGrid.model.count})
+                optionsModel.append({"name": "Add selected to queue", "danger": false, "active": resultsGrid.videosSelected.length})
+                optionsModel.append({"name": "Add selected to playlist...", "danger": false, "active": resultsGrid.videosSelected.length})
+                optionsModel.append({"name": "Remove selected", "danger": true, "active": resultsGrid.videosSelected.length})
+                optionsModel.append({"name": "Delete playlist", "danger": true, "active": 1})
+            }
+        }
+
+        onFocusChanged: {
+            if(!focus) {
+                menuOpened = false
+            }
+        }
+
+        anchors {
+            right: parent.right
+            top: topBar.bottom
+        }
+
+        onOptionClicked: {
+            switch(index)
+            {
+            case 0:
+            default:
+                addAllToQueue(searchText.text.length ? playlistFilterModel : playlistModel)
+                break;
+            case 1:
+                if(resultsGrid.videosSelected.length) {
+                    for(var i = 0; i < resultsGrid.videosSelected.length; ++i) {
+                        var element = resultsGrid.model.get(resultsGrid.videosSelected[i])
+                        addVideoToPlayQueue(element.id, element.title, element.subtitle, element.thumbnail, element.duration)
+                    }
+                    if(resultsGrid.videosSelected.length > 1) {
+                        ApplicationManager.triggerNotification("Added " + resultsGrid.videosSelected.length + " items to playing queue")
+                    }
+
+                    resultsGrid.videosSelected = []
+                }
+                break;
+            case 2:
+                playlistSelectionPopUp.visible = true
+                playlistSelectionPopUp.forceActiveFocus()
+                topBar.enabled = false
+                mainPanel.enabled = false
+                break;
+            case 3:
+                if(resultsGrid.videosSelected.length) {
+                    var videosToRemove = new Array
+                    for(var i = 0; i < resultsGrid.videosSelected.length; ++i) {
+                        videosToRemove.push(resultsGrid.model.get(resultsGrid.videosSelected[i]).id)
+                    }
+                    playlistItem.removeItems(videosToRemove)
+                    resultsGrid.videosSelected = []
+                }
+                break;
+            case 4:
+                popupDeletePlaylist.visible = true
+                mainPanel.enabled = false
+                topBar.enabled = false
+                break;
+            }
+
+            menuOpened = false
+        }
+
+        ListModel {
+            id: optionsModel
+        }
+
+        menuModel: optionsModel
+    }
+
+    PlaylistSelection {
+        id: playlistSelectionPopUp
+        visible: false
+
+        anchors.centerIn: parent
+
+        onAddItemsToPlaylist: {
+            var playlist = PlaylistsManager.playlist(name)
+
+            var ids = new Array
+            var titles = new Array
+            var subTitles = new Array
+            var thumbnails = new Array
+            var durations = new Array
+
+            for(var i = 0; i < resultsGrid.videosSelected.length; ++i) {
+                var videoSelected = resultsGrid.model.get(resultsGrid.videosSelected[i])
+                ids.push(videoSelected.id)
+                titles.push(videoSelected.title)
+                subTitles.push(videoSelected.subtitle)
+                thumbnails.push(videoSelected.thumbnail)
+                durations.push(videoSelected.duration)
+            }
+
+            playlist.addItems(ids, titles, subTitles, thumbnails, durations)
+
+            visible = false
+            topBar.enabled = true
+            mainPanel.enabled = true
+        }
+
+        onCancel: {
+            visible = false
+            topBar.enabled = true
+            mainPanel.enabled = true
         }
     }
 
@@ -586,6 +766,15 @@ Rectangle {
 
     Component.onCompleted: {
         populateModel()
+    }
+
+    Connections {
+        id: playlistConnection
+        ignoreUnknownSignals: true
+
+        onPlaylistChanged: {
+            populateModel()
+        }
     }
 }
 

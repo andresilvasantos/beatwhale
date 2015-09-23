@@ -1,5 +1,5 @@
 <RCC>
-    <qresource prefix="/images">
+    <qresource prefix="/buttons">
         <file alias="add">resources/add.png</file>
         <file alias="remove">resources/remove.png</file>
         <file alias="heartUnchecked">resources/heart_unchecked.png</file>
@@ -23,6 +23,10 @@
         <file alias="addQueue">resources/add_queue.png</file>
         <file alias="arrowMinimize">resources/arrow_minimize.png</file>
         <file alias="icon">resources/icon.png</file>
+        <file alias="tv">resources/tv.png</file>
+        <file alias="tvToggled">resources/tv_highlight.png</file>
+        <file alias="burgerMenu">resources/hamburger_menu.png</file>
+        <file alias="burgerMenuToggled">resources/hamburger_menu_highlight.png</file>
     </qresource>
     <qresource prefix="/icons">
         <file alias="lock">resources/lock.png</file>
@@ -30,6 +34,9 @@
         <file alias="email">resources/mail.png</file>
         <file alias="search">resources/search.png</file>
         <file alias="userToggled">resources/user_selected.png</file>
+        <file alias="edit">resources/edit.png</file>
+        <file alias="sound">resources/sound.png</file>
+        <file alias="soundMute">resources/soundmute.png</file>
     </qresource>
     <qresource prefix="/qml">
         <file alias="ApplicationView.qml">qml/ApplicationView.qml</file>
@@ -54,10 +61,18 @@
         <file alias="RegisterComponent.qml">qml/RegisterComponent.qml</file>
         <file alias="BWMediaControlButton.qml">qml/BWMediaControlButton.qml</file>
         <file alias="WindowControls.qml">qml/WindowControls.qml</file>
+        <file alias="HamburgerMenu.qml">qml/HamburgerMenu.qml</file>
+        <file alias="BWSwitch.qml">qml/BWSwitch.qml</file>
+        <file alias="PlaylistSelection.qml">qml/PlaylistSelection.qml</file>
     </qresource>
     <qresource prefix="/fonts">
         <file alias="openSans">resources/OpenSans-Regular.ttf</file>
         <file alias="openSansBold">resources/OpenSans-Bold.ttf</file>
         <file alias="harabara">resources/Harabara Mais Demo.otf</file>
+    </qresource>
+    <qresource prefix="/images">
+        <file alias="backgroundPattern">resources/background.png</file>
+        <file alias="logoSymbol">resources/icon.png</file>
+        <file alias="logo">resources/logo.png</file>
     </qresource>
 </RCC>

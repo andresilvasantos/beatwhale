@@ -235,16 +235,19 @@ void PlaylistsManager::addPlaylist(Playlist *playlist)
     connect(playlist, SIGNAL(itemsRemoved(QStringList)), SLOT(playlistItemsRemoved(QStringList)));
 }
 
-Playlist *PlaylistsManager::createPlaylist()
+Playlist *PlaylistsManager::createPlaylist(const QString& name)
 {
     Q_D(PlaylistsManager);
 
     Playlist *playlist = new Playlist(this);
+    if(!name.isEmpty()) playlist->setName(name);
+
+    QString nameTmp = playlist->name();
 
     int count = 2;
     while(d->playlistsDocument.object().contains(playlist->name()))
     {
-        playlist->setName("Unnamed Playlist " + QString::number(count));
+        playlist->setName(nameTmp + " " + QString::number(count));
         ++count;
     }
 
@@ -406,7 +409,6 @@ void PlaylistsManager::playlistItemsRemoved(const QStringList &ids)
     foreach(QString id, ids)
     {
         if(!d->playlistsDocument.object().value(playlist->name()).toObject().contains(id)) continue;
-        qDebug() << id;
         JsonHelper::removeKey(d->playlistsDocument, playlist->name(), id);
     }
 
