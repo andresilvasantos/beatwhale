@@ -2,6 +2,9 @@
 #define USERMANAGER_H
 
 #include <QObject>
+#include <QNetworkAccessManager>
+
+#include <couchdbresponse.h>
 
 class VideoItem;
 class QQmlEngine;
@@ -14,10 +17,13 @@ class UserManager : public QObject
     Q_PROPERTY(int orderFilter READ orderFilter WRITE setOrderFilter NOTIFY orderFilterChanged)
     Q_PROPERTY(int durationFilter READ durationFilter WRITE setDurationFilter NOTIFY durationFilterChanged)
     Q_PROPERTY(bool musicOnlyFilter READ musicOnlyFilter WRITE setMusicOnlyFilter NOTIFY musicOnlyFilterChanged)
+    Q_PROPERTY(bool connectionIsDown READ connectionIsDown NOTIFY connectionIsDownChanged)
 
 public:
     static UserManager* singleton();
     static void declareQML();
+
+    void setServerUrl(const QString& url);
 
     Q_INVOKABLE QString storedUsername() const;
     Q_INVOKABLE QString storedPassword() const;
@@ -29,6 +35,8 @@ public:
     Q_INVOKABLE bool rememberCredentials() const;
     Q_INVOKABLE void setRememberCredentials(const bool& remember);
 
+    bool connectionIsDown() const;
+
     int orderFilter() const;
     void setOrderFilter(const int& orderFilter);
 
@@ -39,6 +47,8 @@ public:
     void setMusicOnlyFilter(const bool& musicOnly);
 
 signals:
+    void connectionIsDownChanged(const bool& connectionIsDown);
+
     void orderFilterChanged(const int& orderFilter);
     void durationFilterChanged(const int& durationFilter);
     void musicOnlyFilterChanged(const bool& musicOnlyFilter);
@@ -97,16 +107,14 @@ private slots:
     void forgotDetailsReply();
     void changePasswordReply();
 
-    void loginReply(const bool& success, const bool &authProblem);
-
-    void listeningToChangesFailed(const QString &id);
+    void loginReply(const CouchDBResponse &response);
 
     void uploadDocument();
-    void changesMade(const QString &id, const QString &revision);
-    void documentUpdate(const bool& success, const QString& id, const QJsonDocument& document);
-    void documentUpdatedFeedback(const bool& success, const QString& id);
-    void documentRevisionRetrieved(const bool &success, const QString &id, const QString &revision);
-    void documentSettingsRetrieved(const bool &success, const QString &id, const QJsonDocument &document);
+    void changesMade(const QString &revision);
+    void documentRetrieved(const CouchDBResponse& response);
+    void documentUpdated(const CouchDBResponse& response);
+
+    void networkStatusChanged(QNetworkAccessManager::NetworkAccessibility accessibility);
 
 private:
     explicit UserManager(QObject *parent = 0);

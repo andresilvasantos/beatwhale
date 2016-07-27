@@ -27,6 +27,7 @@
         <file alias="tvToggled">resources/tv_highlight.png</file>
         <file alias="burgerMenu">resources/hamburger_menu.png</file>
         <file alias="burgerMenuToggled">resources/hamburger_menu_highlight.png</file>
+        <file alias="youtube">resources/youtube.png</file>
     </qresource>
     <qresource prefix="/icons">
         <file alias="lock">resources/lock.png</file>

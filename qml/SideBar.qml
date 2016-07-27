@@ -28,6 +28,7 @@ Rectangle {
     signal addPlaylistToPlayQueue(string name)
     signal dragVideoStarted(string dragInfo)
     signal dragVideoFinished()
+    signal openYoutubeLink(string id)
 
     onUserSettingsChanged: {
         if(userSettings) minimizeVideo()
@@ -41,12 +42,14 @@ Rectangle {
             buttonShowVideoLarge.opacity = 1
             buttonShowVideoFullscreen.opacity = 1
             favoriteVideoImage.opacity = currentVideoFavorited ? .7 : .3
+            youtubeLinkImage.opacity = .7
         }
         else {
             playlistInfo.opacity = 0
             buttonShowVideoLarge.opacity = 0
             buttonShowVideoFullscreen.opacity = 0
             favoriteVideoImage.opacity = 0
+            youtubeLinkImage.opacity = 0
         }
     }
 
@@ -74,7 +77,7 @@ Rectangle {
             id: button
             width: sideBar.width
             height: 30
-            color: "transparent"
+            color: "#fdfdfd"
             hoverColor: "#5000addc"
             selectedColor: "#00addc"
             checkable: true
@@ -195,6 +198,10 @@ Rectangle {
                     leftMargin: 40
                     verticalCenter: parent.verticalCenter
                 }
+
+                Behavior on color {
+                    ColorAnimation {duration: 200; easing.type: Easing.OutSine}
+                }
             }
         }
     }
@@ -223,7 +230,7 @@ Rectangle {
                     left: parent.left
                     leftMargin: 20
                     bottom: parent.bottom
-                    bottomMargin: 5
+                    bottomMargin: 10
                 }
             }
 
@@ -396,7 +403,9 @@ Rectangle {
     }
 
     TOPScrollBar {
+        height: sidebarList.height
         flickable: sidebarList
+        anchors.right: sidebarList.right
     }
 
     Rectangle {
@@ -439,6 +448,7 @@ Rectangle {
             buttonShowVideoLarge.opacity = 0
             buttonShowVideoFullscreen.opacity = 0
             favoriteVideoImage.opacity = 0
+            youtubeLinkImage.opacity = 0
         }
 
         Item {
@@ -682,6 +692,71 @@ Rectangle {
 
                     if(currentVideoFavorited) PlaylistsManager.addFavorite(currentVideoID, currentTitle, currentSubTitle, currentThumbnail, currentDuration)
                     else PlaylistsManager.removeFavorite(currentVideoID)
+                }
+
+                onPressed: {
+                    parent.scale = 1.1
+                }
+
+                onReleased: {
+                    parent.scale = 1
+                }
+            }
+        }
+
+
+        Image {
+            id: youtubeLinkImage
+            width: 30
+            height: width
+            source: "qrc:/buttons/youtube"
+            sourceSize.width: width
+            sourceSize.height: height
+            opacity: 0
+            asynchronous: true
+            smooth: false
+
+            anchors {
+                right: favoriteVideoImage.left
+                rightMargin: 5
+                bottom: parent.bottom
+                bottomMargin: 5
+            }
+
+            Behavior on opacity {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+            }
+
+            Behavior on scale {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+
+                onEntered: {
+                    thumbnailHovered = true
+
+                    if(!currentVideoID) return
+
+                    youtubeLinkImage.opacity = .7
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                    ApplicationManager.triggerTooltip("Open Video on YouTube", 10, 0, 1200)
+                }
+
+                onExited: {
+                    if(!currentVideoID) return
+
+                    youtubeLinkImage.opacity = .3
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    ApplicationManager.cancelTooltip()
+                }
+
+                onClicked: {
+                    if(!currentVideoID) return
+
+                    openYoutubeLink(currentVideoID)
                 }
 
                 onPressed: {

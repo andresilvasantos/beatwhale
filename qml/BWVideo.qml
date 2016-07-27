@@ -10,25 +10,39 @@ Rectangle {
     property bool fullscreen: false
     property bool aspectFill: false
     property bool thumbnailHovered: false
+    property string currentVideoID
+    property bool currentVideoFavorited
 
     signal close()
     signal fullscreenVideoRequested()
+    signal addToFavorites()
+    signal removeFromFavorites()
+    signal openYoutubeLink(string id)
+
+    function showButtons() {
+        buttonShowVideoMinimized.opacity = 1
+        buttonShowVideoFullscreen.opacity = 1
+        buttonYoutubeLinkImage.opacity = .7
+        buttonFavoriteVideoImage.opacity = .7
+    }
+
+    function hideButtons() {
+        buttonShowVideoMinimized.opacity = 0
+        buttonShowVideoFullscreen.opacity = 0
+        buttonYoutubeLinkImage.opacity = 0
+        buttonFavoriteVideoImage.opacity = 0
+    }
 
     onVisibleChanged: {
         if(fullscreen) forceActiveFocus()
-
-        buttonShowVideoFullscreen.opacity = 0
-        buttonShowVideoMinimized.opacity = 0
     }
 
     onThumbnailHoveredChanged: {
         if(thumbnailHovered) {
-            buttonShowVideoMinimized.opacity = 1
-            buttonShowVideoFullscreen.opacity = 1
+            showButtons()
         }
         else {
-            buttonShowVideoMinimized.opacity = 0
-            buttonShowVideoFullscreen.opacity = 0
+            hideButtons()
         }
     }
 
@@ -69,9 +83,9 @@ Rectangle {
 
             anchors {
                 left: parent.left
-                leftMargin: 5
+                leftMargin: 10
                 bottom: parent.bottom
-                bottomMargin: 5
+                bottomMargin: 10
             }
 
             Behavior on opacity {
@@ -119,10 +133,10 @@ Rectangle {
             sourceSize.height: 40
 
             anchors {
-                left: buttonShowVideoMinimized.right
-                leftMargin: 5
-                bottom: parent.bottom
-                bottomMargin: 5
+                right: parent.right
+                rightMargin: 10
+                top: parent.top
+                topMargin: 10
             }
 
             Behavior on opacity {
@@ -153,6 +167,138 @@ Rectangle {
 
                 onClicked: {
                     fullscreenVideoRequested()
+                }
+            }
+        }
+
+        Image {
+            id: buttonFavoriteVideoImage
+            width: 35
+            height: width
+            source: currentVideoFavorited ? "qrc:/buttons/heartChecked" : "qrc:/buttons/heartUnchecked"
+            sourceSize.width: width
+            sourceSize.height: height
+            opacity: 0
+            asynchronous: true
+            smooth: false
+
+            anchors {
+                right: parent.right
+                rightMargin: 10
+                bottom: parent.bottom
+                bottomMargin: 10
+            }
+
+            Behavior on opacity {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+            }
+
+            Behavior on scale {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+
+                onEntered: {
+                    thumbnailHovered = true
+
+                    if(!currentVideoID) return
+
+                    buttonFavoriteVideoImage.opacity = .7
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                    ApplicationManager.triggerTooltip(currentVideoFavorited ? "Remove From Favorites" : "Add To Favorites", 10, 0, 1200)
+                }
+
+                onExited: {
+                    if(!currentVideoID) return
+
+                    if(!currentVideoFavorited) buttonFavoriteVideoImage.opacity = .3
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    ApplicationManager.cancelTooltip()
+                }
+
+                onClicked: {
+                    if(!currentVideoID) return
+
+                    currentVideoFavorited = !currentVideoFavorited
+
+                    if(currentVideoFavorited) addToFavorites()
+                    else removeFromFavorites()
+                }
+
+                onPressed: {
+                    parent.scale = 1.1
+                }
+
+                onReleased: {
+                    parent.scale = 1
+                }
+            }
+        }
+
+
+        Image {
+            id: buttonYoutubeLinkImage
+            width: 35
+            height: width
+            source: "qrc:/buttons/youtube"
+            sourceSize.width: width
+            sourceSize.height: height
+            opacity: 0
+            asynchronous: true
+            smooth: false
+
+            anchors {
+                right: buttonFavoriteVideoImage.left
+                rightMargin: 10
+                bottom: parent.bottom
+                bottomMargin: 10
+            }
+
+            Behavior on opacity {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+            }
+
+            Behavior on scale {
+                NumberAnimation { duration: 200; easing.type: Easing.OutSine }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+
+                onEntered: {
+                    thumbnailHovered = true
+
+                    if(!currentVideoID) return
+
+                    buttonYoutubeLinkImage.opacity = .7
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_BUTTON)
+                    ApplicationManager.triggerTooltip("Open Video on YouTube", 10, 0, 1200)
+                }
+
+                onExited: {
+                    if(!currentVideoID) return
+
+                    buttonYoutubeLinkImage.opacity = .3
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    ApplicationManager.cancelTooltip()
+                }
+
+                onClicked: {
+                    if(!currentVideoID) return
+
+                    openYoutubeLink(currentVideoID)
+                }
+
+                onPressed: {
+                    parent.scale = 1.1
+                }
+
+                onReleased: {
+                    parent.scale = 1
                 }
             }
         }

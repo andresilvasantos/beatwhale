@@ -17,6 +17,7 @@ class YoutubeAPIManagerPrivate
 public:
     YoutubeAPIManagerPrivate() :
         networkManager(0),
+        youtubeUpdateProcess(0),
         youtubeUrlProcess(0),
         youtubeDurationProcess(0),
         onlyMusic(false),
@@ -44,6 +45,7 @@ public:
 
     QMap<QTimer*, QNetworkReply*> repliesTimeoutMap;
 
+    QProcess *youtubeUpdateProcess;
     QProcess *youtubeUrlProcess;
     QProcess *youtubeDurationProcess;
 
@@ -63,12 +65,13 @@ YoutubeAPIManager::YoutubeAPIManager(QObject *parent) :
     Q_D(YoutubeAPIManager);
 
     d->networkManager = new QNetworkAccessManager(this);
+    d->youtubeUpdateProcess = new QProcess(this);
     d->youtubeUrlProcess = new QProcess(this);
     d->youtubeDurationProcess = new QProcess(this);
 
     QString youtubeDLProgramPath;
 
-#ifdef Q_OS_MAC
+#ifdef Q_OS_UNIX
     youtubeDLProgramPath = QString(QCoreApplication::applicationDirPath() + "/" + "youtube-dl");
 #else
     youtubeDLProgramPath = QString(QCoreApplication::applicationDirPath() + "/" + "youtube-dl.exe");
@@ -78,6 +81,7 @@ YoutubeAPIManager::YoutubeAPIManager(QObject *parent) :
         qDebug() << "Program Youtube-DL could not be found at" << youtubeDLProgramPath;
         exit(0);
     }
+    d->youtubeUpdateProcess->setProgram(youtubeDLProgramPath);
     d->youtubeUrlProcess->setProgram(youtubeDLProgramPath);
     d->youtubeDurationProcess->setProgram(youtubeDLProgramPath);
 
@@ -398,7 +402,28 @@ void YoutubeAPIManager::suggestion(const QString &id, const QStringList excludeS
 
     d->excludeSuggestionIDs = excludeSuggestionIDs;
 
-    QUrl url("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=30&relatedToVideoId=" + id + "&key=" + d->youtubeAPIKey);
+    QString videoDurationStr;
+    switch(d->durationFilter)
+    {
+    case DURATION_SHORT:
+        videoDurationStr = "short";
+        break;
+    case DURATION_MEDIUM:
+        videoDurationStr = "medium";
+        break;
+    case DURATION_LONG:
+        videoDurationStr = "long";
+        break;
+    case DURATION_ANY:
+    default:
+        videoDurationStr = "any";
+        break;
+    }
+
+    QString musicFilter = d->onlyMusic ? "&videoCategoryId=10" : "";
+
+    QUrl url("https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=30&relatedToVideoId=" + id + "&videoDuration=" + videoDurationStr +
+             musicFilter + "&key=" + d->youtubeAPIKey);
     qDebug() << url;
 
     QNetworkRequest request(url);
@@ -604,6 +629,8 @@ void YoutubeAPIManager::videoUrl(const QString &videoID)
 {
     Q_D(YoutubeAPIManager);
 
+    if(d->youtubeUpdateProcess->isOpen()) return;
+
     if(d->youtubeUrlProcess->isOpen()) d->youtubeUrlProcess->close();
 
     QStringList arguments;
@@ -654,7 +681,7 @@ void YoutubeAPIManager::videoDuration(const QString &videoID)
 {
     Q_D(YoutubeAPIManager);
 
-    if(d->youtubeDurationProcess->isOpen())
+    if(d->youtubeDurationProcess->isOpen() || d->youtubeUpdateProcess->isOpen())
     {
         d->videoDurationRequests.append(videoID);
         return;
@@ -697,6 +724,74 @@ void YoutubeAPIManager::videoDurationFinished()
         QString videoID = d->videoDurationRequests.takeFirst();
         videoDuration(videoID);
     }
+}
+
+void YoutubeAPIManager::updateYoutubeDL()
+{
+    Q_D(YoutubeAPIManager);
+
+    qDebug() << "Youtube DL Update...";
+
+    QStringList arguments;
+    arguments << "--update";
+    d->youtubeUpdateProcess->setArguments(arguments);
+    d->youtubeUpdateProcess->open();
+
+    connect(d->youtubeUpdateProcess, SIGNAL(finished(int)), SLOT(youtubeDLUpdateFinished()));
+    connect(d->youtubeUpdateProcess, SIGNAL(readyReadStandardError()), SLOT(youtubeDLUpdateError()));
+}
+
+void YoutubeAPIManager::youtubeDLUpdateFinished()
+{
+    Q_D(YoutubeAPIManager);
+
+    qDebug() << "Youtube DL Update Finished";
+
+    if(d->youtubeUpdateProcess != sender()) return;
+
+    qDebug() << d->youtubeUpdateProcess->readAll();
+
+    QString youtubeDLProgramPath;
+    QString youtubeDLNewProgramPath;
+    QString youtubeDLBatPath = QString(QCoreApplication::applicationDirPath() + "/" + "youtube-dl-updater.bat");
+
+#ifdef Q_OS_MAC
+    youtubeDLProgramPath = QString(QCoreApplication::applicationDirPath() + "/" + "youtube-dl");
+    youtubeDLNewProgramPath = QString(QCoreApplication::applicationDirPath() + "/" + "youtube-dl.new");
+#else
+    youtubeDLProgramPath = QString(QCoreApplication::applicationDirPath() + "/" + "youtube-dl.exe");
+    youtubeDLNewProgramPath = QString(QCoreApplication::applicationDirPath() + "/" + "youtube-dl.exe.new");
+#endif
+
+    if(QFile::exists(youtubeDLNewProgramPath))
+    {
+        QFile::remove(youtubeDLProgramPath);
+        QFile::remove(youtubeDLBatPath);
+        QFile::rename(youtubeDLNewProgramPath, youtubeDLProgramPath);
+    }
+
+    disconnect(d->youtubeUpdateProcess, SIGNAL(finished(int)), this, SLOT(videoDurationFinished()));
+    disconnect(d->youtubeUpdateProcess, SIGNAL(readyReadStandardError()), this, SLOT(videoDurationFinished()));
+
+    d->youtubeUpdateProcess->close();
+
+    emit youtubeDLUpdateSuccess();
+}
+
+void YoutubeAPIManager::youtubeDLUpdateError()
+{
+    Q_D(YoutubeAPIManager);
+
+    qDebug() << "Youtube DL Update Error";
+
+    if(d->youtubeUpdateProcess != sender()) return;
+
+    disconnect(d->youtubeUpdateProcess, SIGNAL(finished(int)), this, SLOT(videoDurationFinished()));
+    disconnect(d->youtubeUpdateProcess, SIGNAL(readyReadStandardError()), this, SLOT(videoDurationFinished()));
+
+    d->youtubeUpdateProcess->close();
+
+    emit youtubeDLUpdateFailed();
 }
 
 void YoutubeAPIManager::removeTimer(QNetworkReply *reply)

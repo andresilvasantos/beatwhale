@@ -5,8 +5,8 @@
 #include "videoitem.h"
 #include "youtubeapimanager.h"
 
-#include <databasemanager.h>
-#include <jsonhelper.h>
+#include <couchdb.h>
+#include <couchdblistener.h>
 
 #include <QFile>
 #include <QTextStream>
@@ -20,6 +20,9 @@ class UserManagerPrivate
 public:
     UserManagerPrivate() :
         networkManager(0),
+        connectionIsDown(false),
+        couchDB(0),
+        videosListener(0),
         queueFile(0),
         firstTime(true),
         waitingForChanges(false),
@@ -32,6 +35,9 @@ public:
     {
         if(networkManager) delete networkManager;
 
+        if(videosListener) delete videosListener;
+        if(couchDB) delete couchDB;
+
         if(queueFile)
         {
             queueFile->close();
@@ -40,6 +46,10 @@ public:
     }
 
     QNetworkAccessManager *networkManager;
+    bool connectionIsDown;
+
+    CouchDB *couchDB;
+    CouchDBListener *videosListener;
 
     QSettings localSettings;
 
@@ -48,7 +58,6 @@ public:
     QString newPassword;
     QString email;
 
-    QString currentRevision;
     QString currentSettingsRevision;
     QJsonDocument videosDocument;
     QJsonDocument documentToUpload;
@@ -66,6 +75,16 @@ UserManager::UserManager(QObject *parent) :
     QObject(parent),
     d_ptr(new UserManagerPrivate)
 {
+    Q_D(UserManager);
+
+    d->networkManager = new QNetworkAccessManager(this);
+    connect(d->networkManager, SIGNAL(networkAccessibleChanged(QNetworkAccessManager::NetworkAccessibility)),
+            SLOT(networkStatusChanged(QNetworkAccessManager::NetworkAccessibility)));
+
+    d->couchDB = new CouchDB(this);
+    d->couchDB->setServerConfiguration("https://beatwhale.cloudant.com", 80);
+    connect(d->couchDB, SIGNAL(documentUpdated(CouchDBResponse)), SLOT(documentUpdated(CouchDBResponse)));
+    connect(d->couchDB, SIGNAL(documentRetrieved(CouchDBResponse)), SLOT(documentRetrieved(CouchDBResponse)));
 }
 
 UserManager::~UserManager()
@@ -85,6 +104,13 @@ UserManager *UserManager::singleton()
 void UserManager::declareQML()
 {
     qmlRegisterSingletonType<UserManager>("BeatWhaleAPI", 1, 0, "UserManager", qmlUserManagerSingleton);
+}
+
+void UserManager::setServerUrl(const QString &url)
+{
+    Q_D(UserManager);
+    qDebug() << "Setting server url" << url;
+    d->couchDB->setServerConfiguration(url, 80);
 }
 
 QString UserManager::storedUsername() const
@@ -138,6 +164,12 @@ void UserManager::setRememberCredentials(const bool &remember)
         d->localSettings.setValue("login/remember", false);
         d->localSettings.remove("login/credentials");
     }
+}
+
+bool UserManager::connectionIsDown() const
+{
+    Q_D(const UserManager);
+    return d->connectionIsDown;
 }
 
 bool UserManager::musicOnlyFilter() const
@@ -207,8 +239,6 @@ void UserManager::createAccountVerification(const QString &username, const QStri
 {
     Q_D(UserManager);
 
-    if(!d->networkManager) d->networkManager = new QNetworkAccessManager(this);
-
     QUrl url(ApplicationManager::singleton()->beatwhaleAPIUrl() + "sendemailactivation.php?email=" + email.toLower() + "&username=" + username + "&code=" + code);
     QNetworkReply *reply = d->networkManager->get(QNetworkRequest(url));
     connect(reply, SIGNAL(finished()), SLOT(createAccountVerificationReply()));
@@ -236,8 +266,6 @@ void UserManager::createAccountVerificationReply()
 void UserManager::createAccount(const QString &username, const QString &password, const QString &email)
 {
     Q_D(UserManager);
-
-    if(!d->networkManager) d->networkManager = new QNetworkAccessManager(this);
 
     QString randomHex;
     for(int i = 0; i < 16; i++)
@@ -284,8 +312,6 @@ void UserManager::deleteAccount()
 {
     Q_D(UserManager);
 
-    if(!d->networkManager) d->networkManager = new QNetworkAccessManager(this);
-
     QUrl url(ApplicationManager::singleton()->beatwhaleAPIUrl() + "deleteaccount.php?email=" + d->email.toLower() + "&username=" + d->username + "&rev=" + d->currentSettingsRevision);
     QNetworkReply *reply = d->networkManager->get(QNetworkRequest(url));
     connect(reply, SIGNAL(finished()), SLOT(deleteAccountReply()));
@@ -308,7 +334,7 @@ void UserManager::deleteAccountReply()
 
     if(!success)
     {
-        DatabaseManager::singleton()->startSession(d->username, d->password, DatabaseManager::ACCESSTYPE_REMOTE);
+        d->couchDB->startSession(d->username, d->password);
         emit deleteAccountFailed(obj.value("message").toString("Problem connecting to BeatWhale API. Please try again."));
         return;
     }
@@ -328,8 +354,6 @@ void UserManager::deleteAccountReply()
 void UserManager::forgotDetails(const QString& email)
 {
     Q_D(UserManager);
-
-    if(!d->networkManager) d->networkManager = new QNetworkAccessManager(this);
 
     d->newPassword = "";
 
@@ -382,10 +406,8 @@ void UserManager::changePassword(const QString &newPassword)
 {
     Q_D(UserManager);
 
-    if(!d->networkManager) d->networkManager = new QNetworkAccessManager(this);
-
     d->newPassword = newPassword;
-    DatabaseManager::singleton()->endSession(DatabaseManager::ACCESSTYPE_REMOTE);
+    d->couchDB->endSession();
 
     QString randomHex;
     for(int i = 0; i < 16; i++)
@@ -420,14 +442,14 @@ void UserManager::changePasswordReply()
     if(!success)
     {
         d->newPassword = "";
-        DatabaseManager::singleton()->startSession(d->username, d->password, DatabaseManager::ACCESSTYPE_REMOTE);
+        d->couchDB->startSession(d->username, d->password);
         emit changePasswordFailed(obj.value("message").toString("Problem connecting to BeatWhale API. Please try again."));
         return;
     }
 
     d->password = d->newPassword;
     d->newPassword = "";
-    DatabaseManager::singleton()->startSession(d->username, d->password, DatabaseManager::ACCESSTYPE_REMOTE);
+    d->couchDB->startSession(d->username, d->password);
     emit changePasswordSuccess();
 }
 
@@ -438,21 +460,20 @@ void UserManager::login(const QString& username, const QString& password)
     d->username = username;
     d->password = password;
 
-    connect(DatabaseManager::singleton(), SIGNAL(sessionStarted(bool,bool)), SLOT(loginReply(bool,bool)));
-    DatabaseManager::singleton()->startSession(d->username, d->password, DatabaseManager::ACCESSTYPE_REMOTE);
+    connect(d->couchDB, SIGNAL(sessionStarted(CouchDBResponse)), SLOT(loginReply(CouchDBResponse)));
+    d->couchDB->startSession(d->username, d->password);
 }
 
-void UserManager::loginReply(const bool &success, const bool& authProblem)
+void UserManager::loginReply(const CouchDBResponse& response)
 {
     Q_D(UserManager);
 
-    disconnect(DatabaseManager::singleton(), SIGNAL(sessionStarted(bool,bool)), this, SLOT(loginReply(bool,bool)));
+    disconnect(d->couchDB, SIGNAL(sessionStarted(CouchDBResponse)), this, SLOT(loginReply(CouchDBResponse)));
+    //DatabaseManager::singleton()->clearCredentials();
 
-    DatabaseManager::singleton()->clearCredentials();
-
-    if(!success)
+    if(response.status() != COUCHDB_SUCCESS)
     {
-        if(authProblem)
+        if(response.status() == COUCHDB_AUTHERROR)
         {
             emit loginFailed("Incorrect username or password.");
         }
@@ -463,8 +484,7 @@ void UserManager::loginReply(const bool &success, const bool& authProblem)
         return;
     }
 
-    connect(DatabaseManager::singleton(), SIGNAL(documentRetrieved(bool,QString,QJsonDocument)), SLOT(documentSettingsRetrieved(bool,QString,QJsonDocument)));
-    DatabaseManager::singleton()->retrieveDocument("u_" + d->username.toLower(), "settings", DatabaseManager::ACCESSTYPE_REMOTE);
+    d->couchDB->retrieveDocument("u_" + d->username.toLower(), "settings");
 
     //Check if new version exists
     QTimer::singleShot(6000, ApplicationManager::singleton(), SLOT(checkForUpdates()));
@@ -513,7 +533,7 @@ void UserManager::logout()
     d->username = "";
     d->password = "";
 
-    DatabaseManager::singleton()->endSession(DatabaseManager::ACCESSTYPE_REMOTE);
+    d->couchDB->endSession();
 
     d->queueFile->close();
     delete d->queueFile;
@@ -578,10 +598,8 @@ void UserManager::startListeningToChanges()
 
     if(d->username.count())
     {
-        connect(DatabaseManager::singleton(), SIGNAL(listenToChangesFailed(QString)), SLOT(listeningToChangesFailed(QString)));
-        connect(DatabaseManager::singleton(), SIGNAL(changesMade(QString,QString)), SLOT(changesMade(QString,QString)));
-        connect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), SLOT(documentUpdatedFeedback(bool,QString)));
-        DatabaseManager::singleton()->listenToChanges("u_" + d->username.toLower(), "videos", DatabaseManager::ACCESSTYPE_REMOTE);
+        d->videosListener = d->couchDB->createListener("u_" + d->username.toLower(), "videos");
+        connect(d->videosListener, SIGNAL(changesMade(QString)), SLOT(changesMade(QString)));
     }
 }
 
@@ -591,24 +609,10 @@ bool UserManager::stopListeningToChanges()
 
     if(d->username.count())
     {
-        disconnect(DatabaseManager::singleton(), SIGNAL(listenToChangesFailed(QString)), this, SLOT(listeningToChangesFailed(QString)));
-        disconnect(DatabaseManager::singleton(), SIGNAL(changesMade(QString,QString)), this, SLOT(changesMade(QString,QString)));
-        disconnect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), this, SLOT(documentUpdatedFeedback(bool,QString)));
-        return DatabaseManager::singleton()->stopListenToChanges("u_" + d->username.toLower(), "videos", DatabaseManager::ACCESSTYPE_REMOTE);
+        delete d->videosListener;
+        d->videosListener = 0;
     }
     return false;
-}
-
-void UserManager::listeningToChangesFailed(const QString& id)
-{
-    Q_D(UserManager);
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(listenToChangesFailed(QString)), this, SLOT(listeningToChangesFailed(QString)));
-    disconnect(DatabaseManager::singleton(), SIGNAL(changesMade(QString,QString)), this, SLOT(changesMade(QString,QString)));
-    disconnect(DatabaseManager::singleton(), SIGNAL(documentUpdated(bool,QString,QString)), this, SLOT(documentUpdatedFeedback(bool,QString)));
-    ApplicationManager::singleton()->triggerNotification("Connection problem to BeatWhale server.");
-
-    QTimer::singleShot(10000, this, SLOT(startListeningToChanges()));
 }
 
 void UserManager::updateDocument(const QJsonDocument &document)
@@ -628,160 +632,137 @@ void UserManager::uploadDocument()
     if(d->waitingForChanges || !d->documentReadyForUpload) return;
 
     QJsonObject obj = d->documentToUpload.object();
-    obj.insert("_rev", QJsonValue(d->currentRevision));
+    obj.insert("_rev", QJsonValue(d->videosListener->revision()));
     d->documentToUpload = QJsonDocument(obj);
-    DatabaseManager::singleton()->updateDocument("u_" + d->username.toLower(), "videos", d->documentToUpload.toJson(), DatabaseManager::ACCESSTYPE_REMOTE);
+    d->couchDB->updateDocument(d->videosListener->database(), d->videosListener->documentID(), d->documentToUpload.toJson());
 
     d->waitingForChanges = true;
+    d->documentReadyForUpload = false;
 }
 
-void UserManager::changesMade(const QString &id, const QString &revision)
+void UserManager::changesMade(const QString &revision)
 {
     Q_D(UserManager);
 
-    if(id != "videos") return;
+    CouchDBListener *listener = qobject_cast<CouchDBListener*>(sender());
 
-    qDebug() << "Changes made:" << revision;
+    if(!listener) return;
 
     d->waitingForChanges = true;
-    d->currentRevision = revision;
 
-    connect(DatabaseManager::singleton(), SIGNAL(documentRetrieved(bool,QString,QJsonDocument)), SLOT(documentUpdate(bool,QString,QJsonDocument)));
-    DatabaseManager::singleton()->retrieveDocument("u_" + d->username.toLower(), "videos", DatabaseManager::ACCESSTYPE_REMOTE);
+    qDebug() << "Changes were made to" << listener->database() << listener->documentID() << ". Revision:" << revision;
+    d->couchDB->retrieveDocument(listener->database(), listener->documentID());
 }
 
-void UserManager::documentUpdate(const bool &success, const QString &id, const QJsonDocument &document)
+void UserManager::documentRetrieved(const CouchDBResponse& response)
 {
     Q_D(UserManager);
 
-    if(id != "videos") return;
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(documentRetrieved(bool,QString,QJsonDocument)), this, SLOT(documentUpdate(bool,QString,QJsonDocument)));
-    d->waitingForChanges = false;
-
-    if(!success || document.toJson().isEmpty())
+    if(response.status() != COUCHDB_SUCCESS)
     {
-        qDebug() << "There was a problem fecthing document from cloud";
+        qDebug() << "Failed to retrieve document" << response.database() << response.documentID();
+        d->couchDB->retrieveDocument(response.database(), response.documentID());
+        return;
+    }
+
+    if(response.documentID() == "settings")
+    {
+        d->currentSettingsRevision = response.documentObj().value("_rev").toString();
+        d->email = response.documentObj().value("email").toString();
+    }
+    else if(response.documentID() == "videos")
+    {
+        d->waitingForChanges = false;
+
+        d->videosDocument = response.document();
+
+        uploadDocument();
 
         if(d->firstTime)
         {
-            changesMade(id, d->currentRevision);
-            return;
-        }
+            ApplicationManager::singleton()->setNotificationsEnabled(false);
+            PlaylistsManager::singleton()->setDocument(d->videosDocument);
 
-        documentUpdatedFeedback(false, "videos");
-        return;
-    }
-
-
-    d->videosDocument = document;
-
-    uploadDocument();
-
-    d->documentReadyForUpload = false;
-
-    if(d->firstTime)
-    {
-        ApplicationManager::singleton()->setNotificationsEnabled(false);
-        PlaylistsManager::singleton()->setDocument(document);
-
-        foreach(QString entry, d->videosDocument.object().keys())
-        {
-            if(entry == "_id" || entry == "_rev") continue;
-
-            if(entry == "Favorites")
+            foreach(QString entry, d->videosDocument.object().keys())
             {
-                QJsonObject favoritesObj = d->videosDocument.object().value(entry).toObject();
+                if(entry == "_id" || entry == "_rev") continue;
 
-                foreach(QString key, favoritesObj.keys())
+                if(entry == "Favorites")
                 {
-                    QJsonObject itemObj = favoritesObj.value(key).toObject();
-                    PlaylistsManager::singleton()->addFavorite(key, itemObj.value("title").toString(), itemObj.value("subtitle").toString(), itemObj.value("thumbnail").toString(),
-                                                               itemObj.value("duration").toString(), itemObj.value("timestamp").toString());
-                }
-            }
-            else
-            {
-                Playlist *playlist;
+                    QJsonObject favoritesObj = d->videosDocument.object().value(entry).toObject();
 
-                if(PlaylistsManager::singleton()->playlistNames().contains(entry))
-                {
-                    playlist = PlaylistsManager::singleton()->playlist(entry);
+                    foreach(QString key, favoritesObj.keys())
+                    {
+                        QJsonObject itemObj = favoritesObj.value(key).toObject();
+                        PlaylistsManager::singleton()->addFavorite(key, itemObj.value("title").toString(), itemObj.value("subtitle").toString(), itemObj.value("thumbnail").toString(),
+                                                                   itemObj.value("duration").toString(), itemObj.value("timestamp").toString());
+                    }
                 }
                 else
                 {
-                    playlist = new Playlist(this);
-                    playlist->setName(entry);
-                    PlaylistsManager::singleton()->addPlaylist(playlist);
-                }
+                    Playlist *playlist;
 
-                QJsonObject playlistObj = d->videosDocument.object().value(entry).toObject();
+                    if(PlaylistsManager::singleton()->playlistNames().contains(entry))
+                    {
+                        playlist = PlaylistsManager::singleton()->playlist(entry);
+                    }
+                    else
+                    {
+                        playlist = new Playlist(this);
+                        playlist->setName(entry);
+                        PlaylistsManager::singleton()->addPlaylist(playlist);
+                    }
 
-                foreach(QString key, playlistObj.keys())
-                {
-                    QJsonObject itemObj = playlistObj.value(key).toObject();
-                    playlist->addItem(key, itemObj.value("title").toString(), itemObj.value("subtitle").toString(), itemObj.value("thumbnail").toString(),
-                                      itemObj.value("duration").toString(), itemObj.value("timestamp").toString());
+                    QJsonObject playlistObj = d->videosDocument.object().value(entry).toObject();
+
+                    foreach(QString key, playlistObj.keys())
+                    {
+                        QJsonObject itemObj = playlistObj.value(key).toObject();
+                        playlist->addItem(key, itemObj.value("title").toString(), itemObj.value("subtitle").toString(), itemObj.value("thumbnail").toString(),
+                                          itemObj.value("duration").toString(), itemObj.value("timestamp").toString());
+                    }
                 }
             }
+            ApplicationManager::singleton()->setNotificationsEnabled(true);
+
+            d->firstTime = false;
         }
-        ApplicationManager::singleton()->setNotificationsEnabled(true);
 
-        d->firstTime = false;
+        emit documentUpdated();
     }
-
-    emit documentUpdated();
 }
 
-void UserManager::documentUpdatedFeedback(const bool &success, const QString &id)
+void UserManager::documentUpdated(const CouchDBResponse& response)
 {
     Q_D(UserManager);
 
-    if(id != "videos") return;
+    if(response.documentID() != d->videosListener->documentID()) return;
 
-    if(success) return;
+    if(response.status() == COUCHDB_SUCCESS) return;
 
-    qDebug() << "Failed to update document... going to fetch document head";
-
-    connect(DatabaseManager::singleton(), SIGNAL(revisionRetrieved(bool,QString,QString)), SLOT(documentRevisionRetrieved(bool,QString,QString)));
-    DatabaseManager::singleton()->retrieveRevision("u_" + d->username.toLower(), "videos", DatabaseManager::ACCESSTYPE_REMOTE);
-}
-
-void UserManager::documentRevisionRetrieved(const bool &success, const QString &id, const QString& revision)
-{
-    Q_D(UserManager);
-
-    if(id != "videos") return;
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(revisionRetrieved(bool,QString,QString)), this, SLOT(documentRevisionRetrieved(bool,QString,QString)));
-
-    if(!success)
-    {
-        qDebug() << "No success in revision retrieving";
-        documentUpdatedFeedback(false, id);
-        return;
-    }
-
-    d->currentRevision = revision;
-
-    qDebug() << "Going to upload document with new revision" << d->currentRevision;
-
+    qDebug() << "Failed to update document...";
     d->waitingForChanges = false;
-    uploadDocument();
+    d->documentReadyForUpload = true;
 }
 
-void UserManager::documentSettingsRetrieved(const bool &success, const QString &id, const QJsonDocument &document)
+void UserManager::networkStatusChanged(QNetworkAccessManager::NetworkAccessibility accessibility)
 {
     Q_D(UserManager);
 
-    if(id != "settings") return;
-
-    disconnect(DatabaseManager::singleton(), SIGNAL(documentRetrieved(bool,QString,QJsonDocument)), this, SLOT(documentSettingsRetrieved(bool,QString,QJsonDocument)));
-
-    if(success)
+    if(!accessibility && !d->connectionIsDown)
     {
-        d->currentSettingsRevision = document.object().value("_rev").toString();
-        d->email = document.object().value("email").toString();
+        qDebug() << "Connection is down! :(";
+        d->connectionIsDown = true;
+        connectionIsDownChanged(d->connectionIsDown);
+    }
+    else if(accessibility && d->connectionIsDown)
+    {
+        qDebug() << "Connection is up! :)";
+        d->connectionIsDown = false;
+        connectionIsDownChanged(d->connectionIsDown);
+        if(d->documentReadyForUpload)
+        {
+            QTimer::singleShot(2000, this, SLOT(uploadDocument()));
+        }
     }
 }
-

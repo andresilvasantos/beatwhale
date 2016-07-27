@@ -3,6 +3,7 @@
 #include <QQuickWindow>
 #include <QFontDatabase>
 #include <QSettings>
+#include <QtWidgets/QApplication>
 
 #include "applicationmanager.h"
 #include "usermanager.h"
@@ -14,7 +15,6 @@
 #include "closeeventfilter.h"
 #include "mouseeventfilter.h"
 
-#include <databasemanager.h>
 #include <componentslibrary.h>
 
 #include <QmlVlc.h>
@@ -49,6 +49,10 @@ int main(int argc, char *argv[])
     qDebug() << getenv("VLC_PLUGIN_PATH");
 #endif
 
+#ifdef Q_OS_LINUX
+    QApplication::setWindowIcon(QIcon(":/images/logoSymbol"));
+#endif
+
     QFontDatabase::addApplicationFont(":/fonts/openSans");
     QFontDatabase::addApplicationFont(":/fonts/openSansBold");
     QFontDatabase::addApplicationFont(":/fonts/harabara");
@@ -69,10 +73,11 @@ int main(int argc, char *argv[])
 
     RegisterQmlVlc();
     QmlVlcConfig& config = QmlVlcConfig::instance();
-    config.enableAdjustFilter( true );
-    config.enableMarqueeFilter( true );
-    config.enableLogoFilter( true );
-    config.enableDebug( false );
+    config.setNetworkCacheTime(5000);
+    config.enableAdjustFilter(true);
+    config.enableMarqueeFilter(true);
+    config.enableLogoFilter(true);
+    config.enableDebug(false);
 
     qRegisterMetaType<QmlVlcPlayerProxy::State>("QmlVlcPlayerProxy::State");
 

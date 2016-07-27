@@ -64,6 +64,8 @@ public:
 
     void setNotificationsEnabled(const bool& enabled);
 
+    Q_INVOKABLE void openYoutubeLink(QString videoID, int seconds);
+
 signals:
     void windowControlButtonsEnabledChanged(bool enabled);
     void maximizedChanged(bool maximized);
@@ -82,9 +84,6 @@ public slots:
     void loadConfiguration();
     void checkForUpdates();
 
-    Q_INVOKABLE void quit();
-    Q_INVOKABLE void saveWindowData();
-
     Q_INVOKABLE void showMinimized();
     Q_INVOKABLE bool showNormal();
     Q_INVOKABLE void showMaximized();
@@ -96,6 +95,9 @@ public slots:
     Q_INVOKABLE void triggerNotification(const QString& message, const int &duration = 2500);
     Q_INVOKABLE void triggerTooltip(const QString& tooltip, const qreal& displacementX, const qreal& displacementY, const int& duration = 1500);
     Q_INVOKABLE void cancelTooltip();
+
+    Q_INVOKABLE void quit();
+    Q_INVOKABLE void saveWindowData();
 
 private slots:
     void loadConfigurationReply();

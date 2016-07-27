@@ -53,6 +53,9 @@ Rectangle {
     onPlaylistItemChanged: {
         playlistInputNameHolder.visible = false
         screenName.visible = true
+        popupDeletePlaylist.visible = false
+        mainPanel.enabled = true
+        topBar.enabled = true
 
         if(playlistItem) {
             playlistConnection.target = playlistItem
@@ -277,9 +280,17 @@ Rectangle {
                     }
                 }
             }
+        }
 
-            TOPScrollBar {
-                flickable: resultsGrid
+        TOPScrollBar {
+            id: scrollbar
+            flickable: resultsGrid
+
+            anchors {
+                right: mainPanel.right
+                top: mainPanel.top
+                topMargin: topBar.height
+                bottom: mainPanel.bottom
             }
         }
     }
@@ -764,10 +775,6 @@ Rectangle {
         }
     }
 
-    Component.onCompleted: {
-        populateModel()
-    }
-
     Connections {
         id: playlistConnection
         ignoreUnknownSignals: true
@@ -775,6 +782,22 @@ Rectangle {
         onPlaylistChanged: {
             populateModel()
         }
+    }
+
+    Keys.onPressed: {
+        switch(event.key)
+        {
+        case Qt.Key_PageUp:
+            scrollbar.scrollUp()
+            break;
+        case Qt.Key_PageDown:
+            scrollbar.scrollDown()
+            break;
+        }
+    }
+
+    Component.onCompleted: {
+        populateModel()
     }
 }
 

@@ -15,6 +15,7 @@ Rectangle {
     property bool repeat: false
     property bool queueOpened: false
     property bool seeking: false
+    property bool fullscreenMode: false
     signal previous()
     signal next()
     signal play()
@@ -32,6 +33,11 @@ Rectangle {
             if(durationSec > 0) seekSlider.value = currentSeekSec / durationSec
             positionSeekText.text = numberToTimeFormat(currentSeekSec)
         }
+    }
+
+    function reset() {
+        positionSeekText.text = numberToTimeFormat(0)
+        seekSlider.value = 0
     }
 
     function numberToTimeFormat(number) {
@@ -308,6 +314,7 @@ Rectangle {
             height: width
             source: queueOpened ? "qrc:/buttons/openQueueToggled" : "qrc:/buttons/openQueue"
             tooltip: "Open Mini Queue"
+            visible: !fullscreenMode
 
             onClicked: {
                 queueOpened = !queueOpened

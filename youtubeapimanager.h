@@ -58,6 +58,9 @@ signals:
     void videoDurationFailed();
     void videoDurationSuccess(const QString& id, const QString& duration);
 
+    void youtubeDLUpdateFailed();
+    void youtubeDLUpdateSuccess();
+
 public slots:
     void ignoreSSLErrors(QNetworkReply *reply, QList<QSslError> errors);
 
@@ -65,6 +68,7 @@ public slots:
     Q_INVOKABLE void suggestion(const QString& id, const QStringList excludeSuggestionIDs);
     Q_INVOKABLE void videoUrl(const QString& videoID);
     Q_INVOKABLE void videoDuration(const QString& videoID);
+    Q_INVOKABLE void updateYoutubeDL();
 
 private slots:
     void searchFinished();
@@ -89,6 +93,9 @@ private slots:
     void videoUrlError();
 
     void videoDurationFinished();
+
+    void youtubeDLUpdateFinished();
+    void youtubeDLUpdateError();
 
 private:
     explicit YoutubeAPIManager(QObject *parent = 0);

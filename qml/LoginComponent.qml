@@ -315,6 +315,7 @@ Rectangle {
 
                 onLoginSuccess: {
                     UserManager.setRememberCredentials(rememberSwitch.on)
+                    YoutubeAPI.updateYoutubeDL()
                     UserManager.startListeningToChanges()
                     loggedIn()
                 }

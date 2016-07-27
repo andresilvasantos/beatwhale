@@ -127,6 +127,7 @@ Rectangle {
 
             TOPScrollBar {
                 flickable: playlistsView
+                anchors.right: playlistsView.right
             }
         }
     }

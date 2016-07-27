@@ -48,9 +48,9 @@ Rectangle {
             source: "qrc:/images/logoSymbol"
             asynchronous: true
             fillMode: Image.PreserveAspectFit
-            smooth: false
-            sourceSize.width: 20
-            sourceSize.height: 20
+            smooth: true
+            sourceSize.width: 30
+            sourceSize.height: 30
 
             anchors {
                 verticalCenter: parent.verticalCenter

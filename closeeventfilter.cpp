@@ -4,7 +4,7 @@
 
 #include <QTimer>
 #include <QEvent>
-#include <QApplication>
+#include <QtWidgets/QApplication>
 #include <QSettings>
 #include <QWindow>
 #include <QDebug>

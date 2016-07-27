@@ -1,9 +1,9 @@
 #include "applicationmanager.h"
 #include "youtubeapimanager.h"
+#include "usermanager.h"
 
-#include <databasemanager.h>
-
-#include <QApplication>
+#include <QtWidgets/QApplication>
+#include <QDesktopServices>
 #include <QWindow>
 #include <QtQml>
 
@@ -13,7 +13,7 @@ class ApplicationManagerPrivate
 {
 public:
     ApplicationManagerPrivate() :
-        version("0.8.0"),
+        version("0.9.0"),
         newVersionAvailable(false),
         window(0),
         windowControlButtonsEnabled(true),
@@ -256,6 +256,11 @@ void ApplicationManager::setNotificationsEnabled(const bool &enabled)
     d->notificationsEnabled = enabled;
 }
 
+void ApplicationManager::openYoutubeLink(QString videoID, int seconds)
+{
+    QDesktopServices::openUrl(QUrl("https://www.youtube.com/watch?v=" + videoID + "&t=" + QString::number(seconds) + "s"));
+}
+
 void ApplicationManager::loadConfiguration()
 {
     Q_D(ApplicationManager);
@@ -290,7 +295,7 @@ void ApplicationManager::loadConfigurationReply()
         return;
     }
 
-    DatabaseManager::singleton()->setBaseUrl(dbHost);
+    UserManager::singleton()->setServerUrl(dbHost);
     YoutubeAPIManager::singleton()->setAPIKey(youtubeAPIKey);
 
     //Check if there is a new version available
@@ -379,7 +384,6 @@ void ApplicationManager::showFullscreen(bool fullscreen)
     {
         d->maximizedToFullscreen = d->window->visibility() == QWindow::Maximized;
         d->window->showFullScreen();
-        setCursor(CURSORTYPE_FULLSCREEN);
         d->fullscreen = fullscreen;
 
         fullscreenChanged(d->fullscreen);

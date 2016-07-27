@@ -1,9 +1,10 @@
-QT += qml quick multimedia declarative
+QT += qml quick multimedia
 
 ROOT_DIR = ../..
 
 macx {
     CONFIG+= app_bundle
+    QMAKE_MAC_SDK=macosx10.11
 }
 
 CONFIG += c++11
@@ -14,31 +15,31 @@ CONFIG(release, debug|release): DESTDIR = $${ROOT_DIR}/Output/release
 INCLUDEPATH += $$PWD
 
 LIBS += -L$${DESTDIR} -ltop_utils
-LIBS += -L$${DESTDIR} -ltop_databasemanager
+LIBS += -L$${DESTDIR} -ltop_couchdb
 LIBS += -L$${DESTDIR} -ltop_components
 LIBS += -L$${DESTDIR} -ltop_vlc
 
 win32 {
     PRE_TARGETDEPS += $${DESTDIR}/top_utils.lib
-    PRE_TARGETDEPS += $${DESTDIR}/top_databasemanager.lib
+    PRE_TARGETDEPS += $${DESTDIR}/top_couchdb.lib
     PRE_TARGETDEPS += $${DESTDIR}/top_components.lib
     PRE_TARGETDEPS += $${DESTDIR}/top_vlc.lib
 }
 
 unix {
     PRE_TARGETDEPS += $${DESTDIR}/libtop_utils.a
-    PRE_TARGETDEPS += $${DESTDIR}/libtop_databasemanager.a
+    PRE_TARGETDEPS += $${DESTDIR}/libtop_couchdb.a
     PRE_TARGETDEPS += $${DESTDIR}/libtop_components.a
     PRE_TARGETDEPS += $${DESTDIR}/libtop_vlc.a
 }
 
-INCLUDEPATH += ../../TOP/TOP-Utils
-INCLUDEPATH += ../../TOP/TOP-DatabaseManager
-INCLUDEPATH += ../../TOP/TOP-Components
-INCLUDEPATH += ../../TOP/TOP-VLC
+INCLUDEPATH += ../TOP/TOP-Utils
+INCLUDEPATH += ../TOP/TOP-CouchDB
+INCLUDEPATH += ../TOP/TOP-Components
+INCLUDEPATH += ../TOP/TOP-VLC
 
 win32 {
-    VERSION = 0.8.0.0
+    VERSION = 0.9.0.0
     RC_ICONS="icon/icon.ico"
     QMAKE_TARGET_COMPANY = "BeatWhale Inc"
     QMAKE_TARGET_PRODUCT = "BeatWhale"

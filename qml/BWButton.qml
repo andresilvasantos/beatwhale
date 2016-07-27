@@ -74,7 +74,7 @@ Rectangle {
     }
 
     transitions: Transition {
-        ColorAnimation { properties: "color"; duration: 200; easing.type: Easing.InOutQuad }
+        ColorAnimation { properties: "color"; duration: 200; easing.type: Easing.OutSine }
     }
 
     onCheckedChanged: {

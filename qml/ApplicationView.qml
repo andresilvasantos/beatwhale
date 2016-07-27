@@ -14,14 +14,33 @@ Rectangle {
     property int currentVideoIndex: -1
     property bool shuffleEnabled: false
     property bool repeatEnabled: false
+    property bool tvModeEnabled: false
     property bool suggestionRequested: false
     property bool playingQueueMinEnabled: false
     property var shuffleList: new Array
 
     signal loggedOut()
 
+    onTvModeEnabledChanged: {
+        controlsBar.tvMode = tvModeEnabled
+        fullscreenControlsBar.tvMode = tvModeEnabled
+    }
+
+    onShuffleEnabledChanged: {
+        controlsBar.shuffle = shuffleEnabled
+        fullscreenControlsBar.shuffle = shuffleEnabled
+    }
+
+    onRepeatEnabledChanged: {
+        controlsBar.repeat = repeatEnabled
+        fullscreenControlsBar.repeat = repeatEnabled
+    }
+
     function playVideo(index) {
         if(playingModel.count <= index || index < 0) return
+
+        controlsBar.reset()
+        fullscreenControlsBar.reset()
 
         var element = playingModel.get(index)
 
@@ -42,7 +61,7 @@ Rectangle {
 
         currentVideoIndex = index
 
-        if(controlsBar.tvMode && index >= playingModel.count - 1 && (!shuffleEnabled || !shuffleList.length)) {
+        if(tvModeEnabled && index >= playingModel.count - 1 && (!shuffleEnabled || !shuffleList.length)) {
             if(shuffleEnabled) {
                 controlsBar.shuffle = false
             }
@@ -63,7 +82,7 @@ Rectangle {
             return
         }
 
-        if(controlsBar.tvMode && index >= playingModel.count - 1) {
+        if(tvModeEnabled && index >= playingModel.count - 1) {
             newSuggestion()
         }
 
@@ -211,11 +230,15 @@ Rectangle {
 
             onFullscreenVideoRequested: {
                 videoFullscreen.visible = true
+                videoFullscreen.currentVideoID = sideBar.currentVideoID
+                videoFullscreen.currentVideoFavorited = sideBar.currentVideoFavorited
                 ApplicationManager.showFullscreen()
             }
 
             onMaximizeVideoRequested: {
                 videoMaximized.visible = true
+                videoMaximized.currentVideoID = sideBar.currentVideoID
+                videoMaximized.currentVideoFavorited = sideBar.currentVideoFavorited
             }
 
             onMinimizeVideoRequested: {
@@ -307,6 +330,11 @@ Rectangle {
             onDragVideoFinished: {
                 finishVideosDrag()
             }
+
+            onOpenYoutubeLink: {
+                controlsBar.pauseFunc()
+                ApplicationManager.openYoutubeLink(id, Math.ceil(mediaPlayer.time / 1000))
+            }
         }
 
         Rectangle {
@@ -357,12 +385,29 @@ Rectangle {
 
                 onClose: {
                     sideBar.minimizeVideo()
+
+                    var element = playingModel.get(currentVideoIndex)
+                    sideBar.currentVideoFavorited = PlaylistsManager.isFavorited(element.id)
                 }
 
                 onFullscreenVideoRequested: {
                     visible = false
                     videoFullscreen.visible = true
                     ApplicationManager.showFullscreen()
+                }
+
+                onAddToFavorites: {
+                    var element = playingModel.get(currentVideoIndex)
+                    PlaylistsManager.addFavorite(element.id, element.title, element.subtitle, element.thumbnail, element.duration)
+                }
+
+                onRemoveFromFavorites: {
+                    PlaylistsManager.removeFavorite(currentVideoID)
+                }
+
+                onOpenYoutubeLink: {
+                    controlsBar.pauseFunc()
+                    ApplicationManager.openYoutubeLink(id, Math.ceil(mediaPlayer.time / 1000))
                 }
             }
 
@@ -569,7 +614,7 @@ Rectangle {
         currentSeekSec: Math.ceil(mediaPlayer.time / 1000)
         durationSec: Math.ceil(mediaPlayer.length / 1000)
 
-        onPlay: {
+        function playFunc() {
             var now = new Date().valueOf()
             if(mediaPlayer.state == VlcPlayer.Paused && now - lastPausedTime > 60000 * 4) {
                 var url = mediaPlayer.mrl
@@ -588,17 +633,33 @@ Rectangle {
             }
         }
 
-        onPause: {
+        function pauseFunc() {
             mediaPlayer.pause()
             var date = new Date();
             lastPausedTime = date.valueOf()
         }
 
-        onStop: mediaPlayer.stop()
+        function stopFunc() {
+            mediaPlayer.stop()
+        }
 
-        onSeek: {
+        function seekFunc(seekTo) {
             if(mediaPlayer.state !== VlcPlayer.Stopped)
                 mediaPlayer.position = seekTo
+        }
+
+        onPlay: {
+            playFunc()
+        }
+
+        onPause: {
+            pauseFunc()
+        }
+
+        onStop: stopFunc()
+
+        onSeek: {
+            seekFunc(seekTo)
         }
 
         onNext: {
@@ -634,6 +695,10 @@ Rectangle {
                 }
 
                 ApplicationManager.triggerNotification("TV Mode is on.\nVideos will be automatically added to your Playing Queue based on what you are listening.", 4500)
+                tvModeEnabled = true
+            }
+            else {
+                tvModeEnabled = false
             }
 
             if(tvMode && currentVideoIndex >= 0 && currentVideoIndex >= playingModel.count - 1) {
@@ -670,6 +735,126 @@ Rectangle {
 
         onClose: {
             sideBar.minimizeVideo()
+        }
+
+        onVisibleChanged: {
+            if(visible) {
+                controlsBarFullscreenTimer.start()
+            }
+            else {
+                controlsBarFullscreenTimer.stop()
+            }
+        }
+
+        onAddToFavorites: {
+            var element = playingModel.get(currentVideoIndex)
+            PlaylistsManager.addFavorite(element.id, element.title, element.subtitle, element.thumbnail, element.duration)
+        }
+
+        onRemoveFromFavorites: {
+            PlaylistsManager.removeFavorite(currentVideoID)
+        }
+
+        onOpenYoutubeLink: {
+            controlsBar.pauseFunc()
+            ApplicationManager.openYoutubeLink(id, Math.ceil(mediaPlayer.time / 1000))
+        }
+
+        Connections {
+            target: ApplicationManager
+
+            onMouseXChanged: {
+                if(videoFullscreen.visible) {
+                    if(!fullscreenControlsBar.opacity) ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    fullscreenControlsBar.opacity = 1
+                    videoFullscreen.showButtons()
+                    controlsBarFullscreenTimer.start()
+                }
+            }
+
+            onMouseYChanged: {
+                if(videoFullscreen.visible) {
+                    if(!fullscreenControlsBar.visible) ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_NORMAL)
+                    fullscreenControlsBar.opacity = 1
+                    videoFullscreen.showButtons()
+                    controlsBarFullscreenTimer.start()
+                }
+            }
+        }
+
+        Timer {
+            id: controlsBarFullscreenTimer
+            interval: 5000
+
+            onTriggered: {
+                if(videoFullscreen.visible) {
+                    ApplicationManager.setCursor(ApplicationManager.CURSORTYPE_FULLSCREEN)
+                    videoFullscreen.hideButtons()
+                    fullscreenControlsBar.opacity = 0
+                }
+            }
+        }
+
+        MediaControlsBar {
+            id: fullscreenControlsBar
+            width: 800
+            height: 50
+            focus: true
+            visible: opacity
+            fullscreenMode: true
+
+            anchors {
+                horizontalCenter: parent.horizontalCenter
+                bottom: parent.bottom
+                bottomMargin: 20
+            }
+
+            Behavior on opacity {
+                NumberAnimation {duration: 200; easing.type: Easing.OutSine}
+            }
+
+            property double lastPausedTime: 0
+
+            playing: controlsBar.playing
+            currentSeekSec: controlsBar.currentSeekSec
+            durationSec: controlsBar.durationSec
+            shuffle: controlsBar.shuffle
+            repeat: controlsBar.repeat
+            tvMode: controlsBar.tvMode
+
+            onPlay: {
+                controlsBar.playFunc()
+            }
+
+            onPause: {
+                controlsBar.pauseFunc()
+            }
+
+            onStop: mediaPlayer.stopFun()
+
+            onSeek: {
+                controlsBar.seekFunc(seekTo)
+            }
+
+            onNext: {
+                playNextVideo()
+            }
+
+            onPrevious: {
+                playPreviousVideo()
+            }
+
+            onShuffleChanged: {
+                controlsBar.shuffle = shuffle
+            }
+
+            onRepeatChanged: {
+                controlsBar.repeat = repeat
+            }
+
+            onTvModeChanged: {
+                controlsBar.tvMode = tvMode
+            }
         }
     }
 

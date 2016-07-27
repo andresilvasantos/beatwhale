@@ -252,9 +252,17 @@ Rectangle {
                     }
                 }
             }
+        }
 
-            TOPScrollBar {
-                flickable: resultsGrid
+        TOPScrollBar {
+            id: scrollbar
+            flickable: resultsGrid
+
+            anchors {
+                right: mainPanel.right
+                top: mainPanel.top
+                topMargin: topBar.height
+                bottom: mainPanel.bottom
             }
         }
     }
@@ -526,6 +534,18 @@ Rectangle {
 
         onFavoritesChanged: {
             populateModel()
+        }
+    }
+
+    Keys.onPressed: {
+        switch(event.key)
+        {
+        case Qt.Key_PageUp:
+            scrollbar.scrollUp()
+            break;
+        case Qt.Key_PageDown:
+            scrollbar.scrollDown()
+            break;
         }
     }
 

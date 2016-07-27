@@ -262,9 +262,17 @@ Rectangle {
                     }
                 }
             }
+        }
 
-            TOPScrollBar {
-                flickable: resultsGrid
+        TOPScrollBar {
+            id: scrollbar
+            flickable: resultsGrid
+
+            anchors {
+                right: mainPanel.right
+                top: mainPanel.top
+                topMargin: topBar.height
+                bottom: mainPanel.bottom
             }
         }
     }
@@ -479,6 +487,18 @@ Rectangle {
         onSearchFailed: {
             searchRequested = false
             informativeText.text = "SEARCH ERROR. PLEASE TRY AGAIN"
+        }
+    }
+
+    Keys.onPressed: {
+        switch(event.key)
+        {
+        case Qt.Key_PageUp:
+            scrollbar.scrollUp()
+            break;
+        case Qt.Key_PageDown:
+            scrollbar.scrollDown()
+            break;
         }
     }
 }
